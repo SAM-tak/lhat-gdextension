@@ -13,8 +13,27 @@
 #   * the engine decides which file to load from its own name, so the library
 #     is named the way godot-cpp names things and is written straight into the
 #     demo project's bin/, where demo/lhat.gdextension already points.
+cmake_minimum_required(VERSION 3.25)
 
-enable_language(CXX)
+project(lhat_gdextension C CXX)
+
+# コアは兄弟に在るものをそのまま使う。godot-cpp に対して取っているのと同じ
+# 立場で、取得は存在させる手段でしかない（../godot も ../lua-5.5.1 も同じ並び）。
+set(LHAT_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../lhat"
+    CACHE PATH "Where the L^ core lives.")
+if(NOT EXISTS "${LHAT_CORE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "no L^ core at ${LHAT_CORE_DIR}. Clone it beside this one, or point "
+        "LHAT_CORE_DIR at a checkout.")
+endif()
+
+# 拡張が要るのはライブラリだけ。試験も CLI も言語サーバも stdlib も要らない
+# ——いまの godot-* プリセットが立てていたのと同じ組み合わせ。
+set(LHAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LHAT_BUILD_CLI OFF CACHE BOOL "" FORCE)
+set(LHAT_BUILD_LSP OFF CACHE BOOL "" FORCE)
+set(LHAT_BUILD_STDLIB OFF CACHE BOOL "" FORCE)
+add_subdirectory("${LHAT_CORE_DIR}" lhat-core)
 
 set(LHAT_GODOT_CPP_DIR
     "${CMAKE_SOURCE_DIR}/build/godot-cpp"

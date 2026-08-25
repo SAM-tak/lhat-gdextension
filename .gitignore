@@ -1,0 +1,38 @@
+# Build output
+build/
+install/
+out/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+compile_commands.json
+
+# Visual Studio / MSVC
+.vs/
+*.obj
+*.exe
+*.lib
+*.dll
+*.pdb
+*.ilk
+*.exp
+*.user
+
+# Godot: where the built extension lands, and what the editor writes beside
+# the demo project once it has opened it.
+demo/bin/
+demo/.godot/
+
+# VSCodeCounter
+.VSCodeCounter/
+
+# Editors / language servers
+.cache/
+
+# What `lhat --dump-host-api` writes for lhatls: generated from whatever the
+# driver registers, so it goes stale the moment stdlib/ changes -- generate
+# it rather than track it (see vscode-extension/README.md).
+lhat-host.json

@@ -1,0 +1,51 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "ninja-base",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Ninja"
+    },
+    {
+      "name": "debug",
+      "displayName": "Godot GDExtension, debug template (Ninja)",
+      "inherits": "ninja-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GODOTCPP_TARGET": "template_debug"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Godot GDExtension, release template (Ninja)",
+      "inherits": "ninja-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "GODOTCPP_TARGET": "template_release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "displayName": "Godot GDExtension, debug template (Ninja)",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "release",
+      "displayName": "Godot GDExtension, release template (Ninja)",
+      "configurePreset": "release"
+    }
+  ]
+}
