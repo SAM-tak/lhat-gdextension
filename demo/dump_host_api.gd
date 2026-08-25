@@ -1,14 +1,15 @@
 extends SceneTree
 
 # What the extension registers, as lhat-host.json (05 の 8.7). The language
-# server reads that file to know what the checker was told, and only this
-# side knows what `godot` is -- the cli registers stdlib and links no engine.
+# server reads that file to know what the checker was told, and only the
+# engine can say it: the registrations happen in the library it loads.
 #
-#     godot --headless --path godot/demo --script dump_host_api.gd -- <out>
+#     godot --headless --path demo --script dump_host_api.gd -- <out>
 #
-# scripts/dump-host-api.ps1 is what runs this and merges the two halves.
+# <out> may be an absolute path as well as a res:// or user:// one, which is
+# how scripts/dump-host-api.ps1 has this write straight to the workspace root.
 func _initialize() -> void:
-	var out := "user://godot-host.json"
+	var out := "user://lhat-host.json"
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		out = args[0]
