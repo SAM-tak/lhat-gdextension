@@ -38,13 +38,12 @@ public^let^Spinner = Godot.Sprite2D..def^{
 
 	on_timeout = p^self^{ self^.turns += 100 },
 
-	report = f^self^ -> string^{
-		return^ $"{self^.turns} frames, rotation {self^.getRotation()}"
-	},
+	report = f^self^ -> string^{$"{self^.turns} frames, rotation {self^.getRotation()}"},
 
 	_on_script_changed = p^self^ {
 		print("script changed")
 	},
+
 	_on_died = p^self^, message:any^ {
 		print(id^_on_died, message)
 	},
