@@ -23,6 +23,8 @@
 #include <godot_cpp/variant/string_name.hpp>
 #include <godot_cpp/variant/variant.hpp>
 
+#include <gdextension_interface.h>
+
 #include "lhat.h"
 
 namespace godot {
@@ -57,6 +59,66 @@ struct Godot {
     // the type it found. NULL where nothing was registered.
     const LhatHostValueTag *value_tags[Variant::VARIANT_MAX] = {};
 };
+
+// 05 の 8.7: what an engine method costs to call, settled at registration
+// instead of at the call. `godot.Object`'s `call` spells the method as a
+// string, so every call pays a String, a StringName, an Array and a Variant
+// per argument before ClassDB has even been asked. A bound method pays none
+// of that: the MethodBind is found once and the arguments go through
+// ptrcall, which takes the engine's own bytes.
+//
+// Generated, and it has to be: classdb_get_method_bind wants the
+// compatibility hash, and the engine hands out no hash at run time (a
+// MethodInfo carries none). scripts/gen-godot-api.py reads it out of
+// extension_api.json, which is the same file godot-cpp generates itself
+// from -- so the version the extension is built against is the version the
+// hashes come from, and hash_compatibility is what carries them into a
+// later engine.
+//
+// How one value crosses. A host value (8.9) is handed over as the bytes the
+// machine already holds, which are the engine's own layout, so the case that
+// matters converts nothing at all.
+enum {
+    LHAT_GD_NIL = 0,
+    LHAT_GD_BOOL,
+    LHAT_GD_INT,      // int, and every enum:: and bitfield::
+    LHAT_GD_FLOAT,
+    LHAT_GD_STRING,   // String, StringName and NodePath all arrive as string^
+    LHAT_GD_OBJECT,
+    LHAT_GD_VARIANT,
+    // The two that carry a Variant::Type in the low bits: one says which
+    // value type's bytes these are (8.9), the other which handle it is
+    // (a Callable, a Signal, one of the ten packed arrays).
+    LHAT_GD_HOSTVALUE = 64,
+    LHAT_GD_HOSTDATA = 128,
+};
+
+// The widest engine method takes 14 arguments (RenderingServer's fog), so a
+// frame of this many covers every one of them and a call allocates nothing.
+#define LHAT_GD_MAX_ARGS 16
+
+// One engine method, bound. Everything above `module` is generated and
+// constant; the two below are filled by the first registration, which is
+// what makes every registration after it free (the module is the process's).
+struct BoundMethod {
+    const char *module_path;  // "godot.api.Node"
+    const char *name;         // the engine's own spelling, "add_child"
+    const char *signature;    // 13 章's grammar, the receiver written first
+    const char *class_name;
+    uint32_t hash;
+    uint8_t answer;    // one of the kinds above
+    uint8_t arg_count;
+    const uint8_t *arguments;  // arg_count kinds, the receiver not among them
+    const Godot *module;
+    GDExtensionMethodBindPtr bind;  // NULL where the engine refused the hash
+};
+
+// What every entry of that table is registered with: reads `context` as the
+// BoundMethod and ptrcalls what it names. Where the bind is NULL -- an engine
+// that no longer answers to this hash -- it falls back to the call by name,
+// so a version skew costs speed rather than the run.
+LhatValue bound_call(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count);
 
 // Registers the module into `program`, before any checking (05 の 8.7).
 // NULL when there was no memory or a name was taken.

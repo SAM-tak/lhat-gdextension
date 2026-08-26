@@ -1,0 +1,11 @@
+# Which engine classes get bound methods (scripts/gen-godot-api.py).
+#
+# One class per line. Its whole inheritance chain comes along, so naming a
+# leaf is enough -- Sprite2D brings Node2D, CanvasItem, Node and Object.
+#
+# This list exists because the engine has 14478 non-virtual methods and
+# registering all of them into every program would cost a signature parse and
+# a checker type for each. Adding a class is a line here plus a regeneration.
+
+Sprite2D
+Node3D

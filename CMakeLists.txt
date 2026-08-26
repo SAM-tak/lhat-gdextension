@@ -101,6 +101,7 @@ add_library(lhat_gdextension SHARED
     src/register_types.cpp
     src/lhat_host.cpp
     src/lhat_godot_module.cpp
+    src/lhat_godot_api.gen.cpp
     src/lhat_variant.cpp
     src/lhat_runtime.cpp
     src/lhat_script.cpp
