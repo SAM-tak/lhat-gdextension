@@ -5,6 +5,10 @@ has to be told which method a call means. Both are settled here, ahead of
 time, out of extension_api.json -- the file godot-cpp generates its own
 bindings from.
 
+8.8改 lets a registered type say what it is under, so what this writes is the
+engine's tree: one host type per class, declared under the one it inherits
+from, with every method a member of the class that declares it.
+
 It has to be ahead of time. classdb_get_method_bind wants the compatibility
 hash of the method, and no run-time engine call hands one out: what
 ClassDB.class_get_method_list answers is a MethodInfo, which carries a name,
@@ -72,7 +76,7 @@ HOSTDATA = {
 STRINGS = {"String", "StringName", "NodePath"}
 
 
-def kind_of(spelling, classes):
+def kind_of(spelling, classes, wanted):
     """(kind expression, L^ type) for one engine type, or None when unbound."""
     # 02 の 14.8: one number^ over integers and reals, so an int, a float and
     # every enum are one type to a script. Which the engine wanted is still
@@ -96,45 +100,14 @@ def kind_of(spelling, classes):
         return ("LHAT_GD_HOSTDATA + Variant::" + HOSTDATA[spelling],
                 "godot." + spelling)
     if spelling in classes:
-        # 8.8: every engine object is the one host type, so a parameter that
-        # wants a Node and one that wants a Sprite2D are written the same.
-        # What refuses the wrong one is the def^ tree in L^ (lhat/Godot.lh).
+        # 8.8改: the class itself where it was registered, and its nearest
+        # registered ancestor otherwise -- which is also the tag a value of
+        # it crosses with, so the two answers never disagree.
+        for step in reversed(chain(spelling, classes)):
+            if step in wanted:
+                return "LHAT_GD_OBJECT", "godot." + step
         return "LHAT_GD_OBJECT", "godot.Object"
     return None  # Array, Dictionary, typedarray:: -- nothing stands for these
-
-
-def camel(name):
-    """The engine's spelling as L^ writes one: add_child -> addChild."""
-    head, *rest = name.split("_")
-    return head + "".join(part[:1].upper() + part[1:] for part in rest)
-
-
-# 02 の 13.4: a default does not make an argument optional -- a call always
-# writes as many as the declaration does. What it is for is the editing side,
-# which puts it into the call it writes out. So one is carried over wherever
-# it can be spelt in L^, and simply left off where it cannot: a Vector2(0, 0)
-# is a construction rather than a literal, and nothing is lost by not
-# offering it as the first thing to write.
-def default_of(argument):
-    written = argument.get("default_value")
-    if written is None:
-        return None
-    if written == "false":
-        return "false^"
-    if written == "true":
-        return "true^"
-    if written in ('""', '&""', '^""'):
-        return '""'
-    try:
-        int(written)
-        return written
-    except ValueError:
-        pass
-    try:
-        float(written)
-        return written
-    except ValueError:
-        return None
 
 
 def chain(name, classes):
@@ -173,33 +146,27 @@ def gather(api, classes, wanted):
                 continue
             arguments = method.get("arguments", [])
             answered = method.get("return_value", {}).get("type")
-            kinds = [kind_of(a["type"], classes) for a in arguments]
-            answer = (kind_of(answered, classes) if answered
+            kinds = [kind_of(a["type"], classes, wanted) for a in arguments]
+            answer = (kind_of(answered, classes, wanted) if answered
                       else ("LHAT_GD_NIL", None))
             if answer is None or any(kind is None for kind in kinds):
                 left_out += 1
                 continue
-            written = ["godot.Object"] + [kind[1] for kind in kinds]
+            # 14.4: a first parameter written self^ is the receiver, and a
+            # call passes what stands before the dot there without writing it.
+            written = ["self^"] + [kind[1] for kind in kinds]
             if answer[1] is None:
                 signature = "p^" + ", ".join(written) + ";"
             else:
                 signature = ("f^" + ", ".join(written) + " -> " +
                              answer[1] + ";")
             rows.append({
-                "module": "godot.api." + name,
                 "name": method["name"],
                 "signature": signature,
                 "class": name,
                 "hash": method["hash"],
                 "answer": answer[0],
                 "kinds": [kind[0] for kind in kinds],
-                # What the L^ wrapper is written from.
-                "written": camel(method["name"]),
-                "answers": answer[1],
-                "parameters": [
-                    (camel(a["name"]), kind[1], default_of(a))
-                    for a, kind in zip(arguments, kinds)
-                ],
             })
     return rows, left_out
 
@@ -218,7 +185,7 @@ def split_signature(signature, room=68):
     return lines
 
 
-def write(api, wanted, rows, left_out):
+def write(api, classes, wanted, rows, left_out):
     # The same argument shape recurs -- every setter of a float, every getter
     # of nothing -- so one array is written per distinct shape and shared.
     shapes = {}
@@ -269,10 +236,17 @@ def write(api, wanted, rows, left_out):
         say(line)
         say("};")
     say("")
+    say("BoundClass classes[] = {")
+    for name in wanted:
+        base = classes[name].get("inherits")
+        say('    {"%s", %s, nullptr},'
+            % (name, ('"%s"' % base) if base in wanted else "nullptr"))
+    say("};")
+    say("")
     say("BoundMethod bound[] = {")
     for row in rows:
         shape = shapes[tuple(row["kinds"])] if row["kinds"] else "nullptr"
-        say('    {"%s", "%s",' % (row["module"], row["name"]))
+        say('    {"%s",' % row["name"])
         # C++ joins adjacent literals, so a signature too wide for one line
         # is written as several. The text is the same either way.
         pieces = split_signature(row["signature"])
@@ -291,7 +265,27 @@ def write(api, wanted, rows, left_out):
     say("")
     say("}  // namespace")
     say("")
-    say("bool register_godot_api(LhatProgram *program, const Godot *module)")
+    say("bool register_godot_classes(LhatProgram *program, Godot *module)")
+    say("{")
+    say("    // The base is always earlier in the table than what is declared")
+    say("    // under it, since a chain is walked from its root.")
+    say("    for (BoundClass &owner : classes) {")
+    say("        owner.tag =")
+    say("            owner.base == nullptr")
+    say('                ? lhat_register_hostdata_type(program, "godot",')
+    say("                                              owner.name)")
+    say('                : lhat_register_hostdata_subtype(program, "godot",')
+    say('                                                 owner.name, "godot",')
+    say("                                                 owner.base);")
+    say("        if (owner.tag == nullptr) {")
+    say("            return false;")
+    say("        }")
+    say("        module->tags.insert(StringName(owner.name), owner.tag);")
+    say("    }")
+    say("    return true;")
+    say("}")
+    say("")
+    say("bool register_godot_api(LhatProgram *program, Godot *module)")
     say("{")
     say("    for (BoundMethod &method : bound) {")
     say("        // 8.7 makes the module the process's, so a bind is found")
@@ -306,9 +300,10 @@ def write(api, wanted, rows, left_out):
     say("                    owner._native_ptr(), named._native_ptr(),")
     say("                    (GDExtensionInt)method.hash);")
     say("        }")
-    say("        if (!lhat_register_func(program, method.module_path,")
-    say("                                method.name, method.signature,")
-    say("                                bound_call, &method)) {")
+    say('        if (!lhat_register_member(program, "godot",')
+    say("                                  method.class_name, method.name,")
+    say("                                  method.signature, bound_call,")
+    say("                                  &method)) {")
     say("            return false;")
     say("        }")
     say("    }")
@@ -350,107 +345,64 @@ ROOT_MEMBERS = """\tself^{ abstract^gdobj : godot.Object },
 ROOT_NAMES = {"gdobj", "new", "gdBaseClass", "isValid", "className", "emit"}
 
 
-def folded(tabs, head, pieces, room=79):
-    """`head` then the pieces: one line where they fit, folded where not.
+# 05 の 8.8改 puts the engine's tree on the host side, so what is left for L^
+# is one wrapper per class -- something a script can compose onto, and
+# something to hang @export fields off. Every member of the engine class shows
+# through delegate^ (02 の 14.7改2), which makes no forwarding procedures: the
+# name is looked for through the handle when neither the instance nor the
+# definition has it.
+#
+# No composition between the wrappers. A composed def^ cannot narrow an
+# inherited field (override^ marks a member, not the fields), so a Sprite2D
+# wrapper composed onto a Node2D one would still hold a godot.Node2D and
+# delegate to that. Each wrapper holding its own class's handle relates them
+# anyway: 14.10's width subtyping, since the host type inherited the base's
+# members, and member conformance is covariant over the field.
+WRAPPER = """public^let^ {name} = def^{{
+\tself^{{ abstract^gdobj : godot.{name} }},
 
-    A tab counts four, which is what the rest of the tree is written to, and
-    every join is one space -- the caller puts its own commas on.
-    """
-    indent = "\t" * tabs
-    following = "\t" * (tabs + 2)
-    lines = []
-    line = indent + head
-    width = tabs * 4 + len(head)
-    for piece in pieces:
-        if width + 1 + len(piece) > room:
-            lines.append(line)
-            line = following + piece
-            width = (tabs + 2) * 4 + len(piece)
-        else:
-            line += " " + piece
-            width += 1 + len(piece)
-    lines.append(line)
-    return lines
+\toverride^new = f^obj:godot.{name} {{
+\t\tself^{{ gdobj = obj }}
+\t}},
+
+\t# 02 の 18: what the engine registers this class as.
+\tgdBaseClass = "{name}",
+
+\tdelegate^ self^.gdobj
+}}"""
 
 
 def write_lh(api, classes, wanted, rows):
-    by_class = {}
-    for row in rows:
-        by_class.setdefault(row["class"], []).append(row)
-
     out = []
     say = out.append
     say("# L^ (lhat) -- GENERATED by scripts/gen-godot-api.py. Do not edit.")
     say("#")
-    say("# The engine's class tree, written as L^ definitions. 05 の 8.8 makes")
-    say("# a host type nominal and 971 engine classes have no nominal shape L^")
-    say("# could be given, so there is one host type and the hierarchy is")
-    say("# here -- a def^ per class, composed with `..`, which 14.10's width")
-    say("# subtyping relates the right way round.")
+    say("# One wrapper per engine class. The tree itself is on the host side")
+    say("# (05 の 8.8改): godot.Sprite2D is declared under godot.Node2D and")
+    say("# stands wherever one is asked for, so nothing here composes.")
     say("#")
-    say("# Every body reaches the engine through a bound method rather than")
-    say("# by name (05 の 8.7), so a call costs a ptrcall and no lookup, and")
-    say("# what comes back is already the type the signature says -- there is")
-    say("# nothing here for as^ to narrow.")
+    say("# delegate^ (02 の 14.7改2) is what shows the class's members through")
+    say("# the wrapper. It makes no forwarding procedures -- the name is")
+    say("# looked for through the handle -- so this file costs a few lines per")
+    say("# class however many methods that class has.")
+    say("#")
+    say("# The members are spelt as the engine spells them: set_rotation, not")
+    say("# setRotation. What a script writes is what Godot's own")
+    say("# documentation says.")
     say("#")
     say("# From %s." % api["header"]["version_full_name"])
     say("")
     say("module^ lhat.Godot")
     say("")
     say("import^ godot")
-
-    # A name a class writes over one of its own ancestors is a replacement
-    # (14.15改), which is what override^ says. Along another branch it is
-    # not: a Node3D's set_transform and a Node2D's are members of two
-    # definitions that never meet, so what a class can see is its parent's
-    # names and nobody else's.
-    visible = {}
     for name in wanted:
         say("")
-        inherits = classes[name].get("inherits")
-        if inherits is None:
-            say("public^let^ %s = def^{" % name)
-            say(ROOT_MEMBERS.rstrip("\n"))
-        else:
-            say("public^let^ %s = %s..def^{" % (name, inherits))
-            say('\toverride^gdBaseClass = "%s",' % name)
-        here = set(visible.get(inherits, ROOT_NAMES))
-        for row in by_class.get(name, []):
-            written = row["written"]
-            mark = "override^" if written in here else ""
-            here.add(written)
-            declared = []
-            for spelt, typed, default in row["parameters"]:
-                one = "%s:%s" % (spelt, typed)
-                if default is not None:
-                    one += " = " + default
-                declared.append(one)
-            tail = (" -> " + row["answers"] + " {") if row["answers"] else " {"
-            head = "%s%s = %s%s" % (mark, written,
-                                    "f^self^" if row["answers"] else "p^self^",
-                                    "," if declared else tail)
-            pieces = [one + "," for one in declared[:-1]]
-            if declared:
-                pieces.append(declared[-1] + tail)
-            for line in folded(1, head, pieces):
-                say(line)
-
-            passed = [spelt for spelt, _, _ in row["parameters"]]
-            opening = "%s.%s(self^.gdobj%s" % (row["module"], row["name"],
-                                               "," if passed else ")")
-            arguments = [one + "," for one in passed[:-1]]
-            if passed:
-                arguments.append(passed[-1] + ")")
-            for line in folded(2, opening, arguments):
-                say(line)
-            say("\t},")
-        say("}")
-        visible[name] = here
+        say(WRAPPER.format(name=name))
     say("")
 
     with open(LH_OUT, "w", encoding="utf-8", newline="\n") as target:
         target.write("\n".join(out))
-    print("%s: %d definitions" % (os.path.relpath(LH_OUT, ROOT), len(wanted)))
+    print("%s: %d wrappers" % (os.path.relpath(LH_OUT, ROOT), len(wanted)))
 
 
 def main():
@@ -459,7 +411,7 @@ def main():
     classes = {c["name"]: c for c in api["classes"]}
     wanted = selected(classes)
     rows, left_out = gather(api, classes, wanted)
-    write(api, wanted, rows, left_out)
+    write(api, classes, wanted, rows, left_out)
     write_lh(api, classes, wanted, rows)
 
 

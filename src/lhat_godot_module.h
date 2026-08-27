@@ -1,11 +1,15 @@
-// L^ (lhat) -- the `godot` module: one host type for every engine object.
+// L^ (lhat) -- the `godot` module: a host type per engine class.
 //
-// 05 の 8.8 makes a host type nominal, and 971 engine classes in an eight
-// deep tree have no nominal shape L^ could be given: two host types are
-// related by nothing, so `add_child(Node)` could never take a Sprite2D. So
-// there is **one** host type here, and the hierarchy is written in L^
-// instead -- a def^ per engine class, composed with `..`, which 14.10's
-// width subtyping already relates the right way round.
+// 05 の 8.8改 lets a registered type say what it is under, so the engine's
+// tree is the tree here: godot.Sprite2D is declared under godot.Node2D and
+// stands wherever one is asked for. Before that there was one opaque
+// godot.Object for all 971 classes and every boundary the checker could
+// have held was lost with them.
+//
+// Which classes are here is scripts/godot-classes.txt, and what they carry
+// is generated from extension_api.json into lhat_godot_api.gen.cpp. A class
+// that was not registered is stood for by its nearest registered ancestor,
+// so an engine object always crosses as something.
 //
 // What the type carries is an instance id and not a pointer. A node the
 // program still holds may have been freed, and ObjectDB answers that
@@ -58,6 +62,24 @@ struct Godot {
     // stands for -- so a host that has read a Variant can find the tag from
     // the type it found. NULL where nothing was registered.
     const LhatHostValueTag *value_tags[Variant::VARIANT_MAX] = {};
+
+    // 05 の 8.8改: the tag an engine class crosses as, found by the name the
+    // object answers to. A class nobody registered resolves to its nearest
+    // registered ancestor and that answer is written here too, so the walk up
+    // ClassDB happens once for the class rather than once per value.
+    //
+    // Mutable because remembering is not a change: what the table answers is
+    // the same either way, and every reader but the registration is handed a
+    // const module.
+    mutable HashMap<StringName, const LhatHostDataTag *> tags;
+};
+
+// One engine class, declared under another. Generated; `tag` is filled by
+// the first registration and is the process's from then on.
+struct BoundClass {
+    const char *name;
+    const char *base;  // NULL for the root, which is Object
+    const LhatHostDataTag *tag;
 };
 
 // 05 の 8.7: what an engine method costs to call, settled at registration
@@ -101,9 +123,8 @@ enum {
 // constant; the two below are filled by the first registration, which is
 // what makes every registration after it free (the module is the process's).
 struct BoundMethod {
-    const char *module_path;  // "godot.api.Node"
-    const char *name;         // the engine's own spelling, "add_child"
-    const char *signature;    // 13 章's grammar, the receiver written first
+    const char *name;       // the engine's own spelling, "add_child"
+    const char *signature;  // 13 章's grammar, the receiver written self^
     const char *class_name;
     uint32_t hash;
     uint8_t answer;    // one of the kinds above
@@ -114,9 +135,10 @@ struct BoundMethod {
 };
 
 // What every entry of that table is registered with: reads `context` as the
-// BoundMethod and ptrcalls what it names. Where the bind is NULL -- an engine
-// that no longer answers to this hash -- it falls back to the call by name,
-// so a version skew costs speed rather than the run.
+// BoundMethod and ptrcalls what it names. 14.4 hands it the receiver first,
+// which is what the signature's self^ says. Where the bind is NULL -- an
+// engine that no longer answers to this hash -- it falls back to the call by
+// name, so a version skew costs speed rather than the run.
 LhatValue bound_call(LhatMachine *machine, void *context,
                      const LhatValue *arguments, size_t count);
 
@@ -143,13 +165,17 @@ const char *kept(Godot *module, const String &text);
 // lhat_registry_dispose asks for, and the call belongs just before it.
 void dispose_godot();
 
-// A value of godot.Object standing for `object`, or the one standing for
-// nothing when it is NULL. False only when the machine ran out of memory.
+// A value standing for `object`, tagged with the nearest registered class it
+// answers to (8.8改), or the one standing for nothing when it is NULL. False
+// only when the machine ran out of memory.
+//
 bool make_object(LhatMachine *machine, const Godot *module, Object *object,
                  LhatValue *out);
 
-// The object a value of godot.Object stands for, or NULL when the value is
-// not one of ours, stands for nothing, or names something already freed.
+// The object such a value stands for, or NULL when the value is not one of
+// ours, stands for nothing, or names something already freed. Any of the
+// class tags answers, since lhat_hostdata_pointer walks to the base the
+// caller asked for (8.8改).
 Object *object_of(LhatValue value, const Godot *module);
 
 // 02 の 18.7改: what a member marked @signal with an empty body is filled

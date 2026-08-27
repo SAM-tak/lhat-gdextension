@@ -1,5 +1,6 @@
 #include "lhat_godot_module.h"
 
+#include <godot_cpp/classes/class_db_singleton.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/core/memory.hpp>
@@ -128,40 +129,6 @@ LhatValue godot_is_class(LhatMachine *machine, void *context,
         return lhat_bool(false);
     }
     return lhat_bool(object->is_class(name));
-}
-
-LhatValue godot_get(LhatMachine *machine, void *context,
-                    const LhatValue *arguments, size_t count)
-{
-    const Godot *module = module_of(context);
-    Object *object = receiver(arguments, count, context);
-    String name;
-    if (object == nullptr) {
-        return gone("get", arguments[0], module);
-    }
-    if (count < 2 || !text_of(arguments[1], &name)) {
-        return lhat_nil();
-    }
-    LhatValue made = lhat_nil();
-    from_variant(machine, object->get(name), &made, module);
-    return made;
-}
-
-LhatValue godot_set(LhatMachine *machine, void *context,
-                    const LhatValue *arguments, size_t count)
-{
-    (void)machine;
-    const Godot *module = module_of(context);
-    Object *object = receiver(arguments, count, context);
-    String name;
-    if (object == nullptr) {
-        return gone("set", arguments[0], module);
-    }
-    if (count < 3 || !text_of(arguments[1], &name)) {
-        return lhat_nil();
-    }
-    object->set(name, to_variant(arguments[2], module));
-    return lhat_nil();
 }
 
 // 13.7: the signature ends in '...', so the tail arrives as the arguments
@@ -521,8 +488,14 @@ const Godot *register_godot(LhatProgram *program)
         shared = memnew(Godot);
     }
     Godot *module = shared;
-    module->object_tag =
-        lhat_register_hostdata_type(program, "godot", "Object");
+
+    // 05 の 8.8改: the engine's tree, godot.Object at its root. Everything
+    // below registers onto types this made, so it is first.
+    if (!register_godot_classes(program, module)) {
+        return nullptr;
+    }
+    const LhatHostDataTag *const *root = module->tags.getptr(StringName("Object"));
+    module->object_tag = root != nullptr ? *root : nullptr;
     if (module->object_tag == nullptr) {
         return nullptr;
     }
@@ -540,8 +513,10 @@ const Godot *register_godot(LhatProgram *program)
         {"isValid", "f^self^ -> bool^;", godot_is_valid},
         {"className", "f^self^ -> string^;", godot_class_name},
         {"isClass", "f^self^, string^ -> bool^;", godot_is_class},
-        {"get", "f^self^, string^ -> any^;", godot_get},
-        {"set", "p^self^, string^, any^;", godot_set},
+        // 8.8改: `get` and `set` are the engine's own and are generated onto
+        // godot.Object with the rest of Object's methods, so nothing is
+        // written for them here. `call` and `emit` are not: both are vararg,
+        // which has no ptrcall, so they stay the calls by name they were.
         {"call", "f^self^, string^, ... -> any^;", godot_call},
         {"emit", "p^self^, string^, ...;", godot_emit},
         {"dispose", "p^self^;", godot_dispose},
@@ -662,11 +637,39 @@ const Godot *register_godot(LhatProgram *program)
     }
 
     // 05 の 8.7: what the engine itself answers to, bound ahead of the run.
-    // Last, because every type a signature there names is registered above.
+    // Last, because every type a signature there names is registered above --
+    // the classes at the top of this function and the value types just now.
     if (!register_godot_api(program, module)) {
         return nullptr;
     }
     return module;
+}
+
+// 05 の 8.8改: which of the registered classes an object crosses as. Its own
+// class where that was registered, and the nearest ancestor that was
+// otherwise -- godot-classes.txt names a handful and the engine has 971, so
+// most objects arrive as something further up.
+//
+// The answer is written back under the class that was asked about, so the
+// walk up ClassDB happens once per class met rather than once per value.
+const LhatHostDataTag *tag_for(const Godot *module, Object *object)
+{
+    if (object == nullptr) {
+        return module->object_tag;
+    }
+    StringName named = object->get_class();
+    for (StringName walk = named; !walk.is_empty();
+         walk = ClassDBSingleton::get_singleton()->get_parent_class(walk)) {
+        const LhatHostDataTag *const *found = module->tags.getptr(walk);
+        if (found != nullptr) {
+            if (walk != named) {
+                module->tags.insert(named, *found);
+            }
+            return *found;
+        }
+    }
+    module->tags.insert(named, module->object_tag);
+    return module->object_tag;
 }
 
 bool make_object(LhatMachine *machine, const Godot *module, Object *object,
@@ -685,7 +688,8 @@ bool make_object(LhatMachine *machine, const Godot *module, Object *object,
             handle->hold = Ref<RefCounted>(counted);
         }
     }
-    if (!lhat_machine_make_hostdata(machine, module->object_tag, handle, out)) {
+    if (!lhat_machine_make_hostdata(machine, tag_for(module, object), handle,
+                                    out)) {
         memdelete(handle);
         return false;
     }

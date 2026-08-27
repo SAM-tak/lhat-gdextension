@@ -15,11 +15,22 @@ namespace host {
 
 struct Godot;
 
-// Registers every bound method into `program`, under godot.api.<Class>. The
-// first call also finds the MethodBind for each; the module is the process's,
-// so the ones after it register the names again and find nothing again
-// (05 の 8.7). Belongs with the rest of register_godot, before any checking.
-bool register_godot_api(LhatProgram *program, const Godot *module);
+// The engine's classes: one host type per class, each declared under the one
+// it inherits from (05 の 8.8改), and the module's tag table filled from
+// them. First of everything register_godot does -- godot.Object is the root
+// of this tree, and the members registered onto it are registered onto
+// something this made.
+bool register_godot_classes(LhatProgram *program, Godot *module);
+
+// Their methods, each a member of the class that declares it. After the value
+// types, whose names the signatures here spell (godot.Vector2 and the rest).
+//
+// The first call also finds the MethodBind for each; the module is the
+// process's, so the ones after it register the names again and find nothing
+// again (8.7). 8.8改 settles what a derived type inherits when registration
+// closes, so registering members after the relation is declared is the
+// ordinary order rather than a late one.
+bool register_godot_api(LhatProgram *program, Godot *module);
 
 }  // namespace host
 }  // namespace godot
