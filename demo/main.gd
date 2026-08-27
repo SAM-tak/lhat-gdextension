@@ -63,4 +63,26 @@ func _ready() -> void:
 	print("one=", one.call("count"), " two=", two.call("count"))
 	print(one.call("greet", "Godot"))
 
+	# The other thing a script is worn by: a Resource rather than a Node.
+	# Its @export fields are what the inspector edits and what a .tres keeps,
+	# which is what makes a custom resource worth writing.
+	var item := Resource.new()
+	item.set_script(load("res://item.lh"))
+	item.set("name", "a lamp")
+	item.set("price", 40)
+	item.call("raise", 5)
+	print(item.call("describe"))
+
+	var where := "user://item.tres"
+	if ResourceSaver.save(item, where) != OK:
+		push_error("the custom resource would not save")
+		get_tree().quit(1)
+		return
+	var back := ResourceLoader.load(where, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if back == null or back.call("describe") != item.call("describe"):
+		push_error("the custom resource did not come back as it went")
+		get_tree().quit(1)
+		return
+	print("from the .tres: ", back.call("describe"))
+
 	get_tree().quit(0)

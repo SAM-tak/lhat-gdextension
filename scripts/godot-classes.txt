@@ -32,3 +32,10 @@ under Node2D
 under Node3D
 under Control
 under Node
+
+# Not a Node and not a branch. What a script extends here is Resource itself
+# -- a custom resource with @export fields, saved as a .tres and handed to a
+# node through the inspector, which is how Godot spells data that is edited
+# rather than written. The 378 classes under it are things a script loads and
+# passes rather than things it is worn by, so they are not taken.
+Resource

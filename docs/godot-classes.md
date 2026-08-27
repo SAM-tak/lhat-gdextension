@@ -6,8 +6,8 @@
 `python scripts/gen-godot-api.py` で増える。
 
 - エンジンのクラス: **971**
-- L^ に登録済み: **251**（`Node2D.lh` 54、`Node3D.lh` 112、`Control.lh` 65、`Node.lh` 27）
-- バインドされたメソッド: **5566**
+- L^ に登録済み: **253**（`Node2D.lh` 54、`Node3D.lh` 112、`Control.lh` 65、`Node.lh` 27、`Resource.lh` 3）
+- バインドされたメソッド: **5590**
 
 メソッド数は「バインド済み / 呼べるもの」。呼べるものからは
 virtual（スクリプトが実装する側）、vararg（ptrcall が無い）、
@@ -393,7 +393,7 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `ReflectionProbe` | `VisualInstance3D` | ○ | 30 / 30 | `lhat/Godot/Node3D.lh` |
 | `RemoteTransform2D` | `Node2D` | ○ | 11 / 11 | `lhat/Godot/Node2D.lh` |
 | `RemoteTransform3D` | `Node3D` | ○ | 11 / 11 | `lhat/Godot/Node3D.lh` |
-| `Resource` | `RefCounted` | — | 0 / 20 | — |
+| `Resource` | `RefCounted` | ○ | 20 / 20 | `lhat/Godot/Resource.lh` |
 | `ResourcePreloader` | `Node` | ○ | 6 / 6 | `lhat/Godot/Node.lh` |
 | `RetargetModifier3D` | `SkeletonModifier3D` | ○ | 12 / 12 | `lhat/Godot/Node3D.lh` |
 | `RibbonTrailMesh` | `PrimitiveMesh` | — | 0 / 12 | — |
@@ -706,7 +706,7 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `NavigationPathQueryResult3D` | `RefCounted` | — | 0 / 11 | — |
 | `Node3DGizmo` | `RefCounted` | — | 0 / 0 | — |
 | `Noise` | `Resource` | — | 0 / 9 | — |
-| `Object` | `—` | ○ | 38 / 46 | `lhat/Godot/Node2D.lh`、`lhat/Godot/Node3D.lh`、`lhat/Godot/Control.lh`、`lhat/Godot/Node.lh` |
+| `Object` | `—` | ○ | 38 / 46 | `lhat/Godot/Node2D.lh`、`lhat/Godot/Node3D.lh`、`lhat/Godot/Control.lh`、`lhat/Godot/Node.lh`、`lhat/Godot/Resource.lh` |
 | `Occluder3D` | `Resource` | — | 0 / 2 | — |
 | `OpenXRAPIExtension` | `RefCounted` | — | 0 / 44 | — |
 | `OpenXRBindingModifier` | `Resource` | — | 0 / 0 | — |
@@ -921,7 +921,7 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `RDUniform` | `RefCounted` | — | 0 / 7 | — |
 | `RDVertexAttribute` | `RefCounted` | — | 0 / 10 | — |
 | `RandomNumberGenerator` | `RefCounted` | — | 0 / 11 | — |
-| `RefCounted` | `Object` | — | 0 / 4 | — |
+| `RefCounted` | `Object` | ○ | 4 / 4 | `lhat/Godot/Resource.lh` |
 | `RenderDataExtension` | `RenderData` | — | 0 / 0 | — |
 | `RenderDataRD` | `RenderData` | — | 0 / 0 | — |
 | `RenderSceneBuffersExtension` | `RenderSceneBuffers` | — | 0 / 0 | — |

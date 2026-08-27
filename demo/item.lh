@@ -1,0 +1,23 @@
+# A custom resource: fields the inspector edits, saved as a .tres, handed to
+# a node through an @export. What `extends Resource` is for in GDScript, and
+# the one thing a script is worn by that is not a Node.
+
+module^demo.item
+
+let^Godot = require^"lhat/Godot/Resource.lh"
+
+@export_class
+public^let^Item = Godot.Resource..def^{
+	self^{
+		@export name = "nothing",
+		@export price = 0,
+	},
+
+	describe = f^self^ -> string^ {
+		$"{self^.name} costs {self^.price}"
+	},
+
+	raise = p^self^, by:number^ {
+		self^.price := self^.price + by
+	},
+}
