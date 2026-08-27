@@ -1,11 +1,34 @@
-# Which engine classes get bound methods (scripts/gen-godot-api.py).
+# Which engine classes get bound methods and an L^ wrapper
+# (scripts/gen-godot-api.py).
 #
-# One class per line. Its whole inheritance chain comes along, so naming a
-# leaf is enough -- Sprite2D brings Node2D, CanvasItem, Node and Object.
+# One class per line; its whole inheritance chain comes along, so naming a
+# leaf is enough.
 #
-# This list exists because the engine has 14478 non-virtual methods and
-# registering all of them into every program would cost a signature parse and
-# a checker type for each. Adding a class is a line here plus a regeneration.
+# `under <Class>` takes every class under that one that Godot's own "create a
+# new script" dialog would offer as a parent: the core API, able to be
+# instantiated, exposed to scripting, and not blacklisted there. Together the
+# lines below are the whole tree a script can be worn by, which is what the
+# scene tree's dialog asks for (set_inheritance_base_type("Node")).
+#
+# ONE LINE IS ONE FILE. Each becomes demo/lhat/Godot/<name>.lh, and a class
+# goes in the first line that reaches it -- so a narrow branch is named
+# before a wide one and `under Node` at the end picks up the remainder. The
+# split is not a choice about meaning: 03 の 5.2 gives a unit fewer than 250
+# bindings and the tree is 251, so it has to live in more than one file.
+# Nothing composes between wrappers, so where one lives changes nothing.
+#
+# What this list costs, measured. Checking is per class and grows with it: a
+# base and a delegate are links rather than copies of a member list. Loading
+# a unit is neither -- it is quadratic in how many methods are registered,
+# whatever the unit holds. Loading the same .lh takes
+#
+#     366 methods    (6 classes)     66 ms
+#   1,261 methods   (54 classes)  1,153 ms
+#   5,566 methods  (251 classes) 18,728 ms
+#
+# and eb1a98a took the quadratic out: the same load is 75-122 ms now.
 
-Sprite2D
-Node3D
+under Node2D
+under Node3D
+under Control
+under Node

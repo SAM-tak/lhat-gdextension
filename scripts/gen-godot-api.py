@@ -35,7 +35,8 @@ API = os.path.join(ROOT, "build", "godot-cpp", "gdextension",
                    "extension_api.json")
 CLASSES = os.path.join(HERE, "godot-classes.txt")
 OUT = os.path.join(ROOT, "src", "lhat_godot_api.gen.cpp")
-LH_OUT = os.path.join(ROOT, "demo", "lhat", "Godot.lh")
+LH_DIR = os.path.join(ROOT, "demo", "lhat", "Godot")
+DOCS_OUT = os.path.join(ROOT, "docs", "godot-classes.md")
 
 # 05 の 8.9: the value types the module registers, whose bytes are the engine's
 # own layout -- so an argument of one of these reaches ptrcall without being
@@ -70,10 +71,6 @@ HOSTDATA = {
     "PackedColorArray": "PACKED_COLOR_ARRAY",
 }
 
-# A string of the engine's is three types and one L^ type: what a script
-# writes is text, and which flavour the engine wanted is the boundary's
-# business rather than the writer's. Which one still has to be carried --
-# a ptrcall reads the bytes as the type that was declared.
 # The kinds whose argument is built rather than written into a machine word,
 # and how many of them one signature may want (lhat_godot_module.h's
 # LHAT_GD_MAX_BOXED). A method wanting none is handed no frame for them.
@@ -81,6 +78,10 @@ BOXED = {"LHAT_GD_STRING", "LHAT_GD_STRINGNAME", "LHAT_GD_NODEPATH",
          "LHAT_GD_VARIANT"}
 MAX_BOXED = 4
 
+# A string of the engine's is three types and one L^ type: what a script
+# writes is text, and which flavour the engine wanted is the boundary's
+# business rather than the writer's. Which one still has to be carried --
+# a ptrcall reads the bytes as the type that was declared.
 STRINGS = {
     "String": "LHAT_GD_STRING",
     "StringName": "LHAT_GD_STRINGNAME",
@@ -130,19 +131,91 @@ def chain(name, classes):
     return walk[::-1]
 
 
+# What Godot's own "create a new script" dialog offers as a parent, which is
+# CreateDialog::_should_hide_type read the other way round: the core API, able
+# to be instantiated, exposed to scripting, and not one of the two names that
+# dialog blacklists. `is_virtual` has no field in extension_api.json, and does
+# not need one -- ClassDB::_can_instantiate looks at creation_func, which a
+# virtual class has none of, so is_instantiable already says no to those.
+def offerable(name, classes):
+    described = classes[name]
+    return (described["api_type"] == "core" and
+            described.get("is_instantiable") and
+            name not in ("MissingNode", "MissingResource"))
+
+
+# 03 の 5.2: a register is one byte and LHAT_MAX_REGISTERS is 250, so a unit
+# holds fewer than that many bindings. The whole Node tree is 251, so the
+# wrappers are written one file per line of godot-classes.txt -- a line names
+# a branch and the file is that branch. Nothing composes between wrappers
+# (each holds its own class's handle), so where a wrapper lives is free.
+MAX_PER_UNIT = 240
+
+
 def selected(classes):
-    wanted = []
+    """[(group name, [class, ...]), ...], in the order the list names them.
+
+    A group carries the whole ancestry of what it names, so each file stands
+    on its own: reading lhat/Godot/Node3D.lh is enough to write a Node3D or
+    anything under it. The trunk therefore appears in more than one file, and
+    that is fine -- nothing composes between wrappers and each holds its own
+    class's handle, so two files declaring a wrapper for godot.Node declare
+    the same shape over the same host type.
+
+    A line that reaches nothing new after the lines before it is dropped, so
+    `under Node` written last is the Nodes no branch above it covered.
+    """
+    groups = []
+    covered = set()
+
     with open(CLASSES, encoding="utf-8") as source:
         for line in source:
             line = line.split("#", 1)[0].strip()
             if not line:
                 continue
-            if line not in classes:
-                sys.exit("no engine class named " + line)
-            for step in chain(line, classes):
-                if step not in wanted:
-                    wanted.append(step)
-    return wanted
+            leaves = []
+            if line.startswith("under "):
+                named = line[len("under "):].strip()
+                if named not in classes:
+                    sys.exit("no engine class named " + named)
+                leaves = [n for n in classes
+                          if named in chain(n, classes) and
+                          offerable(n, classes)]
+            else:
+                named = line
+                if named not in classes:
+                    sys.exit("no engine class named " + named)
+                leaves = [named]
+
+            # Only what no earlier line already put in a file of its own.
+            fresh = [n for n in leaves if n not in covered]
+            if not fresh:
+                continue
+            covered.update(fresh)
+
+            # The ancestry of what is new here, so the file stands alone
+            # without carrying leaves an earlier file already wrote.
+            here = []
+            for leaf in fresh:
+                for step in chain(leaf, classes):
+                    if step not in here:
+                        here.append(step)
+            if len(here) > MAX_PER_UNIT:
+                sys.exit("%s takes %d classes with its ancestry; a unit holds "
+                         "%d. Name narrower branches."
+                         % (named, len(here), MAX_PER_UNIT))
+            groups.append((named, here))
+    return groups
+
+
+def every(groups):
+    """Every class the groups name, once each, in order."""
+    out = []
+    for _, names in groups:
+        for name in names:
+            if name not in out:
+                out.append(name)
+    return out
 
 
 def gather(api, classes, wanted):
@@ -293,9 +366,9 @@ def write(api, classes, wanted, rows, left_out):
     say("            owner.base == nullptr")
     say('                ? lhat_register_hostdata_type(program, "godot",')
     say("                                              owner.name)")
-    say('                : lhat_register_hostdata_subtype(program, "godot",')
-    say('                                                 owner.name, "godot",')
-    say("                                                 owner.base);")
+    say('                : lhat_register_hostdata_subtype(')
+    say('                      program, "godot", owner.name, "godot",')
+    say("                      owner.base);")
     say("        if (owner.tag == nullptr) {")
     say("            return false;")
     say("        }")
@@ -394,15 +467,25 @@ WRAPPER = """public^let^{name} = def^{{
 }}"""
 
 
-def write_lh(api, classes, wanted, rows):
+def write_lh(api, classes, groups, rows):
+    for named, names in groups:
+        write_one_lh(api, named, names)
+    print("%s: %d units, %d wrappers"
+          % (os.path.relpath(LH_DIR, ROOT), len(groups),
+             len(every(groups))))
+
+
+def write_one_lh(api, named, wanted):
     out = []
     say = out.append
     say("# L^ (lhat) -- GENERATED by scripts/gen-godot-api.py. "
         "Do not edit.")
     say("#")
-    say("# One wrapper per engine class. The tree itself is on the host side")
-    say("# (05 の 8.8改): godot.Sprite2D is declared under godot.Node2D and")
-    say("# stands wherever one is asked for, so nothing here composes.")
+    say("# The wrappers under %s. One per engine class, and the tree" % named)
+    say("# itself is on the host side (05 の 8.8改): godot.Sprite2D is")
+    say("# declared under godot.Node2D and stands wherever one is asked for,")
+    say("# so nothing here composes -- which is also why it does not matter")
+    say("# which of these files a wrapper lives in.")
     say("#")
     say("# delegate^ (02 の 14.7改2) is what shows the class's members")
     say("# through the wrapper. It makes no forwarding procedures at all --")
@@ -415,7 +498,7 @@ def write_lh(api, classes, wanted, rows):
     say("#")
     say("# From %s." % api["header"]["version_full_name"])
     say("")
-    say("module^lhat.Godot")
+    say("module^lhat.Godot.%s" % named)
     say("")
     say("import^godot")
     for name in wanted:
@@ -423,19 +506,154 @@ def write_lh(api, classes, wanted, rows):
         say(WRAPPER.format(name=name))
     say("")
 
-    with open(LH_OUT, "w", encoding="utf-8", newline="\n") as target:
+    if not os.path.isdir(LH_DIR):
+        os.makedirs(LH_DIR)
+    where = os.path.join(LH_DIR, named + ".lh")
+    with open(where, "w", encoding="utf-8", newline="\n") as target:
         target.write("\n".join(out))
-    print("%s: %d wrappers" % (os.path.relpath(LH_OUT, ROOT), len(wanted)))
+
+
+def callable_methods(name, classes):
+    """(bound, reachable) for one class's own methods."""
+    reachable = 0
+    for method in classes[name].get("methods", []):
+        if (method.get("is_virtual") or method.get("is_vararg") or
+                method.get("is_static")):
+            continue
+        reachable += 1
+    return reachable
+
+
+def unbound_reason(method, classes, wanted):
+    """Why a method is not in the table, or None when it is."""
+    types = [a["type"] for a in method.get("arguments", [])]
+    answered = method.get("return_value", {}).get("type")
+    if answered:
+        types.append(answered)
+    for spelling in types:
+        if kind_of(spelling, classes, wanted) is None:
+            if spelling.startswith("typedarray::"):
+                return "typed array"
+            if spelling.startswith("typeddictionary::"):
+                return "typed dictionary"
+            return spelling
+    return None
+
+
+def write_docs(api, classes, groups, rows):
+    """docs/godot-classes.md: what reaches L^ and what does not."""
+    wanted = every(groups)
+    lives_in = {}
+    for named, names in groups:
+        for name in names:
+            lives_in.setdefault(name, []).append(named)
+    bound = {}
+    for row in rows:
+        bound[row["class"]] = bound.get(row["class"], 0) + 1
+
+    # The three groups a reader wants apart: what a script can be worn by,
+    # what only turns up as a type, and the rest.
+    def worn(name):
+        walk = chain(name, classes)
+        return "Node" in walk or "Resource" in walk
+
+    offered = {n for n in classes if offerable(n, classes) and worn(n)}
+    appears = set()
+    for described in classes.values():
+        for method in described.get("methods", []):
+            for a in method.get("arguments", []):
+                if a["type"] in classes:
+                    appears.add(a["type"])
+            answered = method.get("return_value", {}).get("type")
+            if answered in classes:
+                appears.add(answered)
+        for signal in described.get("signals", []):
+            for a in signal.get("arguments", []):
+                if a["type"] in classes:
+                    appears.add(a["type"])
+        for described_property in described.get("properties", []):
+            if described_property["type"] in classes:
+                appears.add(described_property["type"])
+
+    out = []
+    say = out.append
+    say("# Godot のクラスと L^ のバインド")
+    say("")
+    say("`scripts/gen-godot-api.py` が生成する。手で書き換えない。")
+    say("")
+    say("対象は `scripts/godot-classes.txt` が選んだもの。1行足して")
+    say("`python scripts/gen-godot-api.py` で増える。")
+    say("")
+    say("- エンジンのクラス: **%d**" % len(classes))
+    say("- L^ に登録済み: **%d**（%s）"
+        % (len(wanted),
+           "、".join("`%s.lh` %d" % (named, len(names))
+                     for named, names in groups)))
+    say("- バインドされたメソッド: **%d**" % len(rows))
+    say("")
+    say("メソッド数は「バインド済み / 呼べるもの」。呼べるものからは")
+    say("virtual（スクリプトが実装する側）、vararg（ptrcall が無い）、")
+    say("static（レシーバが無い）を除いてある。落ちた分の理由は")
+    say("引数か答えに `Array` / `Dictionary` / 型付き配列があること。")
+    say("")
+
+    def section(title, note, names):
+        say("## %s" % title)
+        say("")
+        say(note)
+        say("")
+        say("| クラス | 親 | L^ | メソッド | require^ |")
+        say("|---|---|---|---|---|")
+        for name in sorted(names):
+            described = classes[name]
+            reachable = callable_methods(name, classes)
+            if name in wanted:
+                mark = "○"
+                counted = "%d / %d" % (bound.get(name, 0), reachable)
+                where = "、".join("`lhat/Godot/%s.lh`" % one
+                                  for one in lives_in[name])
+            else:
+                mark = "—"
+                counted = "0 / %d" % reachable
+                where = "—"
+            say("| `%s` | `%s` | %s | %s | %s |"
+                % (name, described.get("inherits") or "—", mark, counted,
+                   where))
+        say("")
+
+    section("スクリプトが着られるクラス",
+            "エディタが新規スクリプトの親として提示するもの"
+            "（`CreateDialog::_should_hide_type` を抜けたもの）。"
+            "Node 派生と Resource 派生。",
+            offered)
+    section("型としてだけ現れるクラス",
+            "どのメソッドの引数・答え・シグナル・プロパティにも出てくるが、"
+            "親としては提示されないもの。抽象基底とシングルトンが主。",
+            appears - offered)
+    section("そのほか",
+            "上のどちらでもないもの。エディタ専用 API、"
+            "直接 `new` して使う RefCounted 派生など。",
+            set(classes) - offered - appears)
+
+    directory = os.path.dirname(DOCS_OUT)
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+    with open(DOCS_OUT, "w", encoding="utf-8", newline="\n") as target:
+        target.write("\n".join(out))
+    print("%s: %d classes listed" % (os.path.relpath(DOCS_OUT, ROOT),
+                                     len(classes)))
 
 
 def main():
     with open(API, encoding="utf-8") as source:
         api = json.load(source)
     classes = {c["name"]: c for c in api["classes"]}
-    wanted = selected(classes)
+    groups = selected(classes)
+    wanted = every(groups)
     rows, left_out = gather(api, classes, wanted)
     write(api, classes, wanted, rows, left_out)
-    write_lh(api, classes, wanted, rows)
+    write_lh(api, classes, groups, rows)
+    write_docs(api, classes, groups, rows)
 
 
 if __name__ == "__main__":
