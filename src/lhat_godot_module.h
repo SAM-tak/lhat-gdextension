@@ -105,7 +105,12 @@ enum {
     LHAT_GD_BOOL,
     LHAT_GD_INT,      // int, and every enum:: and bitfield::
     LHAT_GD_FLOAT,
-    LHAT_GD_STRING,   // String, StringName and NodePath all arrive as string^
+    // A script writes text for all three, but a ptrcall is handed the type
+    // the engine declared and they are three types: passing a String where a
+    // StringName was declared hands the engine another object's bytes.
+    LHAT_GD_STRING,
+    LHAT_GD_STRINGNAME,
+    LHAT_GD_NODEPATH,
     LHAT_GD_OBJECT,
     LHAT_GD_VARIANT,
     // The two that carry a Variant::Type in the low bits: one says which
@@ -119,6 +124,14 @@ enum {
 // frame of this many covers every one of them and a call allocates nothing.
 #define LHAT_GD_MAX_ARGS 16
 
+// How many of those can want a String, a StringName, a NodePath or a Variant
+// at once. These four are the arguments that have to be built rather than
+// written into a machine word, and building a run of them per call was
+// measured costing more than the ptrcall it prepares -- so they get a frame
+// of their own, only as wide as any signature needs, and only where one
+// does. The generator refuses a table that would overrun this.
+#define LHAT_GD_MAX_BOXED 4
+
 // One engine method, bound. Everything above `module` is generated and
 // constant; the two below are filled by the first registration, which is
 // what makes every registration after it free (the module is the process's).
@@ -129,6 +142,9 @@ struct BoundMethod {
     uint32_t hash;
     uint8_t answer;    // one of the kinds above
     uint8_t arg_count;
+    // How many arguments have to be built (LHAT_GD_MAX_BOXED). Zero for five
+    // methods in six, and those pay for no construction at all.
+    uint8_t boxed;
     const uint8_t *arguments;  // arg_count kinds, the receiver not among them
     const Godot *module;
     GDExtensionMethodBindPtr bind;  // NULL where the engine refused the hash

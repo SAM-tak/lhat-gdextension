@@ -72,8 +72,20 @@ HOSTDATA = {
 
 # A string of the engine's is three types and one L^ type: what a script
 # writes is text, and which flavour the engine wanted is the boundary's
-# business rather than the writer's.
-STRINGS = {"String", "StringName", "NodePath"}
+# business rather than the writer's. Which one still has to be carried --
+# a ptrcall reads the bytes as the type that was declared.
+# The kinds whose argument is built rather than written into a machine word,
+# and how many of them one signature may want (lhat_godot_module.h's
+# LHAT_GD_MAX_BOXED). A method wanting none is handed no frame for them.
+BOXED = {"LHAT_GD_STRING", "LHAT_GD_STRINGNAME", "LHAT_GD_NODEPATH",
+         "LHAT_GD_VARIANT"}
+MAX_BOXED = 4
+
+STRINGS = {
+    "String": "LHAT_GD_STRING",
+    "StringName": "LHAT_GD_STRINGNAME",
+    "NodePath": "LHAT_GD_NODEPATH",
+}
 
 
 def kind_of(spelling, classes, wanted):
@@ -90,7 +102,7 @@ def kind_of(spelling, classes, wanted):
     if spelling == "bool":
         return "LHAT_GD_BOOL", "bool^"
     if spelling in STRINGS:
-        return "LHAT_GD_STRING", "string^"
+        return STRINGS[spelling], "string^"
     if spelling == "Variant":
         return "LHAT_GD_VARIANT", "any^"
     if spelling in HOSTVALUE:
@@ -160,12 +172,18 @@ def gather(api, classes, wanted):
             else:
                 signature = ("f^" + ", ".join(written) + " -> " +
                              answer[1] + ";")
+            boxed = sum(1 for kind in kinds if kind[0] in BOXED)
+            if boxed > MAX_BOXED:
+                sys.exit("%s.%s wants %d built arguments; raise "
+                         "LHAT_GD_MAX_BOXED past %d"
+                         % (name, method["name"], boxed, MAX_BOXED))
             rows.append({
                 "name": method["name"],
                 "signature": signature,
                 "class": name,
                 "hash": method["hash"],
                 "answer": answer[0],
+                "boxed": boxed,
                 "kinds": [kind[0] for kind in kinds],
             })
     return rows, left_out
@@ -254,11 +272,12 @@ def write(api, classes, wanted, rows, left_out):
             tail = "," if index == len(pieces) - 1 else ""
             say('     "%s"%s' % (piece, tail))
         say('     "%s", %uu,' % (row["class"], row["hash"]))
-        tail = "%s, %d, %s, nullptr, nullptr}," % (row["answer"],
-                                                   len(row["kinds"]), shape)
+        tail = "%s, %d, %d, %s, nullptr, nullptr}," % (
+            row["answer"], len(row["kinds"]), row["boxed"], shape)
         if len(tail) + 5 > 79:
             say("     %s," % row["answer"])
-            say("     %d, %s, nullptr, nullptr}," % (len(row["kinds"]), shape))
+            say("     %d, %d, %s, nullptr, nullptr},"
+                % (len(row["kinds"]), row["boxed"], shape))
         else:
             say("     %s" % tail)
     say("};")

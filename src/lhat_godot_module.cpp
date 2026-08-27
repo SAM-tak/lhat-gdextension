@@ -6,6 +6,7 @@
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/godot.hpp>
 #include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/node_path.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/variant/variant.hpp>
@@ -63,6 +64,18 @@ bool text_of(LhatValue value, String *out)
     const LhatString *text = (const LhatString *)lhat_as_object(value);
     *out = String::utf8(text->text, (int)text->length);
     return true;
+}
+
+// What a host answers with when the answer is text. The three string types
+// the engine declares are one string^ to a script, so all three come through
+// here once they are back on this side.
+LhatValue text_answer(LhatMachine *machine, const String &text)
+{
+    CharString bytes = text.utf8();
+    LhatValue made = lhat_nil();
+    lhat_machine_make_string(machine, bytes.get_data(), (size_t)bytes.length(),
+                             &made);
+    return made;
 }
 
 // 04 の 11.3 spells "not there" nil^, and a freed object is the same kind of
@@ -299,43 +312,36 @@ void dispose_godot()
 // The receiver is written first, as the signature says. It is not self^:
 // these are functions of a module rather than members of the one host type,
 // which 971 classes of members would all have landed on.
-LhatValue bound_call(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count)
+// The room one call needs that is not a machine word. A String, a StringName,
+// a NodePath and a Variant each have to be built, and building runs of them
+// per call was measured costing more than the ptrcall they prepare -- so this
+// stands apart from bound_call's frame and is put down only where a signature
+// wants one. Five methods in six want none.
+struct Boxed {
+    String texts[LHAT_GD_MAX_BOXED];
+    StringName names[LHAT_GD_MAX_BOXED];
+    NodePath paths[LHAT_GD_MAX_BOXED];
+    Variant variants[LHAT_GD_MAX_BOXED];
+};
+
+// What a ptrcall is handed for an argument that fits in a machine word.
+union Held {
+    int64_t integer;
+    double real;
+    int8_t boolean;
+    GodotObject *owner;
+};
+
+// Every argument but the receiver, laid out where a ptrcall can read it.
+// `room` is NULL exactly where `method->boxed` is zero. False on a value that
+// is not what the signature said -- 5.1: a wrong call stops rather than
+// corrupts.
+bool laid_out(const BoundMethod *method, const LhatValue *arguments,
+              size_t wanted, GDExtensionConstTypePtr *slots, Held *held,
+              Boxed *room)
 {
-    const BoundMethod *method = (const BoundMethod *)context;
     const Godot *module = method->module;
-    Object *object = count > 0 ? object_of(arguments[0], module) : nullptr;
-    if (object == nullptr) {
-        return gone(method->name, count > 0 ? arguments[0] : lhat_nil(),
-                    module);
-    }
-    // An engine that no longer answers to this hash, and an answer no ptrcall
-    // shape below covers. Neither happens to a table generated against the
-    // godot-cpp being built with; the second is asked because a wider
-    // godot-classes.txt could reach a method answering a Callable or a packed
-    // array, and by name is the right answer there rather than no answer.
-    if (method->bind == nullptr || method->answer >= LHAT_GD_HOSTDATA) {
-        return by_name(machine, method, object, arguments, count);
-    }
-
-    size_t wanted = method->arg_count;
-    if (count < wanted + 1 || wanted > LHAT_GD_MAX_ARGS) {
-        return lhat_nil();  // 5.1: a wrong call stops rather than corrupts
-    }
-
-    // The room one call needs, all of it on this frame. A String and a
-    // Variant have to outlive the encoding, so they stand out here rather
-    // than inside the switch that fills them.
-    GDExtensionConstTypePtr slots[LHAT_GD_MAX_ARGS];
-    union Held {
-        int64_t integer;
-        double real;
-        int8_t boolean;
-        GodotObject *owner;
-    } held[LHAT_GD_MAX_ARGS];
-    String texts[LHAT_GD_MAX_ARGS];
-    Variant variants[LHAT_GD_MAX_ARGS];
-
+    size_t built = 0;
     for (size_t i = 0; i < wanted; i++) {
         LhatValue given = arguments[i + 1];
         uint8_t kind = method->arguments[i];
@@ -350,7 +356,7 @@ LhatValue bound_call(LhatMachine *machine, void *context,
             slots[i] = (GDExtensionConstTypePtr)lhat_hostdata_pointer(given,
                                                                       tag);
             if (slots[i] == nullptr) {
-                return lhat_nil();
+                return false;
             }
             continue;
         }
@@ -360,7 +366,7 @@ LhatValue bound_call(LhatMachine *machine, void *context,
             slots[i] = (GDExtensionConstTypePtr)lhat_hostvalue_data(
                 given, module->value_tags[kind - LHAT_GD_HOSTVALUE]);
             if (slots[i] == nullptr) {
-                return lhat_nil();
+                return false;
             }
             continue;
         }
@@ -383,12 +389,6 @@ LhatValue bound_call(LhatMachine *machine, void *context,
                                    : lhat_as_real(given);
                 slots[i] = &held[i].real;
                 break;
-            case LHAT_GD_STRING:
-                if (!text_of(given, &texts[i])) {
-                    return lhat_nil();
-                }
-                slots[i] = &texts[i];
-                break;
             case LHAT_GD_OBJECT: {
                 // What a ptrcall is handed is the place the pointer sits in,
                 // not the pointer -- and nothing at all where there is no
@@ -400,70 +400,107 @@ LhatValue bound_call(LhatMachine *machine, void *context,
                                : nullptr;
                 break;
             }
-            default:
-                variants[i] = to_variant(given, module);
-                slots[i] = &variants[i];
+            default: {
+                // The four that are built. They share one counter, so the
+                // frame is as wide as the widest signature rather than as
+                // wide as the argument list.
+                if (room == nullptr || built >= LHAT_GD_MAX_BOXED) {
+                    return false;
+                }
+                size_t at = built++;
+                if (kind == LHAT_GD_VARIANT) {
+                    room->variants[at] = to_variant(given, module);
+                    slots[i] = &room->variants[at];
+                    break;
+                }
+                if (!text_of(given, &room->texts[at])) {
+                    return false;
+                }
+                if (kind == LHAT_GD_STRING) {
+                    slots[i] = &room->texts[at];
+                } else if (kind == LHAT_GD_STRINGNAME) {
+                    room->names[at] = StringName(room->texts[at]);
+                    slots[i] = &room->names[at];
+                } else {
+                    room->paths[at] = NodePath(room->texts[at]);
+                    slots[i] = &room->paths[at];
+                }
                 break;
+            }
         }
     }
+    return true;
+}
 
+// The call itself, and what comes back read as the kind the signature said.
+LhatValue answered(LhatMachine *machine, const BoundMethod *method,
+                   GodotObject *owner, const GDExtensionConstTypePtr *slots)
+{
+    const Godot *module = method->module;
     GDExtensionMethodBindPtr bind = method->bind;
-    GodotObject *owner = object->_owner;
     switch (method->answer) {
         case LHAT_GD_NIL:
             internal::gdextension_interface_object_method_bind_ptrcall(
                 bind, owner, slots, nullptr);
             return lhat_nil();
         case LHAT_GD_BOOL: {
-            int8_t answered = 0;
+            int8_t back = 0;
             internal::gdextension_interface_object_method_bind_ptrcall(
-                bind, owner, slots, &answered);
-            return lhat_bool(answered != 0);
+                bind, owner, slots, &back);
+            return lhat_bool(back != 0);
         }
         case LHAT_GD_INT: {
-            int64_t answered = 0;
+            int64_t back = 0;
             internal::gdextension_interface_object_method_bind_ptrcall(
-                bind, owner, slots, &answered);
-            return lhat_integer(answered);
+                bind, owner, slots, &back);
+            return lhat_integer(back);
         }
         case LHAT_GD_FLOAT: {
-            double answered = 0;
+            double back = 0;
             internal::gdextension_interface_object_method_bind_ptrcall(
-                bind, owner, slots, &answered);
-            return lhat_real(answered);
+                bind, owner, slots, &back);
+            return lhat_real(back);
         }
         case LHAT_GD_STRING: {
-            String answered;
+            String back;
             internal::gdextension_interface_object_method_bind_ptrcall(
-                bind, owner, slots, &answered);
-            CharString bytes = answered.utf8();
-            LhatValue made = lhat_nil();
-            lhat_machine_make_string(machine, bytes.get_data(),
-                                     (size_t)bytes.length(), &made);
-            return made;
+                bind, owner, slots, &back);
+            return text_answer(machine, back);
+        }
+        case LHAT_GD_STRINGNAME: {
+            StringName back;
+            internal::gdextension_interface_object_method_bind_ptrcall(
+                bind, owner, slots, &back);
+            return text_answer(machine, String(back));
+        }
+        case LHAT_GD_NODEPATH: {
+            NodePath back;
+            internal::gdextension_interface_object_method_bind_ptrcall(
+                bind, owner, slots, &back);
+            return text_answer(machine, String(back));
         }
         case LHAT_GD_OBJECT: {
-            GodotObject *answered = nullptr;
+            GodotObject *back = nullptr;
             internal::gdextension_interface_object_method_bind_ptrcall(
-                bind, owner, slots, &answered);
+                bind, owner, slots, &back);
             // The binding is what turns the engine's object back into one
             // godot-cpp holds -- the step _call_native_mb_ret_obj takes, and
             // the only way a ptrcall ever answers an object.
             Object *given =
-                answered != nullptr
+                back != nullptr
                     ? reinterpret_cast<Object *>(
-                          internal::get_object_instance_binding(answered))
+                          internal::get_object_instance_binding(back))
                     : nullptr;
             LhatValue made = lhat_nil();
             make_object(machine, module, given, &made);
             return made;
         }
         case LHAT_GD_VARIANT: {
-            Variant answered;
+            Variant back;
             internal::gdextension_interface_object_method_bind_ptrcall(
-                bind, owner, slots, &answered);
+                bind, owner, slots, &back);
             LhatValue made = lhat_nil();
-            from_variant(machine, answered, &made, module);
+            from_variant(machine, back, &made, module);
             return made;
         }
         default: {
@@ -480,6 +517,55 @@ LhatValue bound_call(LhatMachine *machine, void *context,
             return made;
         }
     }
+}
+
+// 05 の 8.7: one engine method, reached through the bind found when it was
+// registered. What a call by name pays -- a String, a StringName, an Array,
+// and a Variant for every argument, before ClassDB has even been asked -- is
+// all paid ahead of the run here, and what crosses is the bytes the machine
+// already holds (8.9).
+//
+// 14.4 hands the receiver first, which is what the signature's self^ says.
+LhatValue bound_call(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count)
+{
+    const BoundMethod *method = (const BoundMethod *)context;
+    const Godot *module = method->module;
+    Object *object = count > 0 ? object_of(arguments[0], module) : nullptr;
+    if (object == nullptr) {
+        return gone(method->name, count > 0 ? arguments[0] : lhat_nil(),
+                    module);
+    }
+    // An engine that no longer answers to this hash, and an answer no ptrcall
+    // shape covers. Neither happens to a table generated against the
+    // godot-cpp being built with; the second is asked because a wider
+    // godot-classes.txt could reach a method answering a Callable or a packed
+    // array, and by name is the right answer there rather than no answer.
+    if (method->bind == nullptr || method->answer >= LHAT_GD_HOSTDATA) {
+        return by_name(machine, method, object, arguments, count);
+    }
+
+    size_t wanted = method->arg_count;
+    if (count < wanted + 1 || wanted > LHAT_GD_MAX_ARGS) {
+        return lhat_nil();  // 5.1: a wrong call stops rather than corrupts
+    }
+
+    GDExtensionConstTypePtr slots[LHAT_GD_MAX_ARGS];
+    Held held[LHAT_GD_MAX_ARGS];
+
+    // The one branch that matters: a signature wanting nothing built puts
+    // down no Boxed at all, which is what five methods in six do.
+    if (method->boxed != 0) {
+        Boxed room;
+        if (!laid_out(method, arguments, wanted, slots, held, &room)) {
+            return lhat_nil();
+        }
+        return answered(machine, method, object->_owner, slots);
+    }
+    if (!laid_out(method, arguments, wanted, slots, held, nullptr)) {
+        return lhat_nil();
+    }
+    return answered(machine, method, object->_owner, slots);
 }
 
 const Godot *register_godot(LhatProgram *program)
