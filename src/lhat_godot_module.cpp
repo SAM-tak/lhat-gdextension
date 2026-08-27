@@ -47,6 +47,33 @@ Object *resolve(const Handle *handle)
     return UtilityFunctions::instance_from_id((int64_t)handle->id);
 }
 
+// The engine's object and nothing else, which is all a ptrcall is handed.
+//
+// resolve above goes the way godot-cpp goes: a utility function, and then
+// get_object_instance_binding to hand back something with methods on it. A
+// bound method calls none of them -- it has a MethodBind and wants the
+// pointer to call it against -- so this asks ObjectDB and stops there.
+//
+// Worth a fifth of what isValid cost and about a twentieth of a bound call;
+// ObjectDB itself was never the expensive part, and neither, it turns out, is
+// a binding already made. What this buys is not paying for either.
+//
+// The id still answers the question a raw pointer could not: it carries a
+// generation, so a freed object gives NULL here rather than a recycled slot.
+GodotObject *owner_of(LhatValue value, const Godot *module)
+{
+    if (module == nullptr) {
+        return nullptr;
+    }
+    const Handle *handle =
+        (const Handle *)lhat_hostdata_pointer(value, module->object_tag);
+    if (handle == nullptr || handle->id == 0) {
+        return nullptr;
+    }
+    return (GodotObject *)internal::gdextension_interface_object_get_instance_from_id(
+        (GDObjectInstanceID)handle->id);
+}
+
 Object *receiver(const LhatValue *arguments, size_t count, void *context)
 {
     if (count == 0) {
@@ -115,7 +142,11 @@ LhatValue godot_is_valid(LhatMachine *machine, void *context,
                          const LhatValue *arguments, size_t count)
 {
     (void)machine;
-    return lhat_bool(receiver(arguments, count, context) != nullptr);
+    // Whether ObjectDB still answers to the id, which owner_of asks straight
+    // -- nothing here calls a method on the object, so nothing here needs
+    // godot-cpp's instance binding.
+    return lhat_bool(count > 0 &&
+                     owner_of(arguments[0], module_of(context)) != nullptr);
 }
 
 LhatValue godot_class_name(LhatMachine *machine, void *context,
@@ -393,9 +424,8 @@ bool laid_out(const BoundMethod *method, const LhatValue *arguments,
                 // What a ptrcall is handed is the place the pointer sits in,
                 // not the pointer -- and nothing at all where there is no
                 // object, which is how a null argument is spelt.
-                Object *passed = object_of(given, module);
-                held[i].owner = passed != nullptr ? passed->_owner : nullptr;
-                slots[i] = passed != nullptr
+                held[i].owner = owner_of(given, module);
+                slots[i] = held[i].owner != nullptr
                                ? (GDExtensionConstTypePtr)&held[i].owner
                                : nullptr;
                 break;
@@ -531,8 +561,8 @@ LhatValue bound_call(LhatMachine *machine, void *context,
 {
     const BoundMethod *method = (const BoundMethod *)context;
     const Godot *module = method->module;
-    Object *object = count > 0 ? object_of(arguments[0], module) : nullptr;
-    if (object == nullptr) {
+    GodotObject *owner = count > 0 ? owner_of(arguments[0], module) : nullptr;
+    if (owner == nullptr) {
         return gone(method->name, count > 0 ? arguments[0] : lhat_nil(),
                     module);
     }
@@ -541,7 +571,13 @@ LhatValue bound_call(LhatMachine *machine, void *context,
     // godot-cpp being built with; the second is asked because a wider
     // godot-classes.txt could reach a method answering a Callable or a packed
     // array, and by name is the right answer there rather than no answer.
+    // Only this road wants something with methods on it, so only this road
+    // pays for the instance binding.
     if (method->bind == nullptr || method->answer >= LHAT_GD_HOSTDATA) {
+        Object *object = object_of(arguments[0], module);
+        if (object == nullptr) {
+            return gone(method->name, arguments[0], module);
+        }
         return by_name(machine, method, object, arguments, count);
     }
 
@@ -560,12 +596,12 @@ LhatValue bound_call(LhatMachine *machine, void *context,
         if (!laid_out(method, arguments, wanted, slots, held, &room)) {
             return lhat_nil();
         }
-        return answered(machine, method, object->_owner, slots);
+        return answered(machine, method, owner, slots);
     }
     if (!laid_out(method, arguments, wanted, slots, held, nullptr)) {
         return lhat_nil();
     }
-    return answered(machine, method, object->_owner, slots);
+    return answered(machine, method, owner, slots);
 }
 
 const Godot *register_godot(LhatProgram *program)
