@@ -29,12 +29,12 @@ namespace {
 // since that is the spelling: what strips it is unhatted() below, and only
 // for the one caller that needs it stripped.
 const char *const control_flow_words[] = {
-    "if^",     "else^", "elseif^", "elsif^",  "elif^",  "ei^",
-    "el^",     "for^",  "when^",   "other^",  "from^",  "to^",
-    "downto^", "step^", "in^",     "while^",  "until^", "next^",
-    "skip^",   "continue^", "repeat^", "do^", "break^", "return^",
-    "yield^",  "await^", "defer^", "with^", "finally^",
-    "try^",    "catch^", "panic^",  nullptr,
+    "if^",     "else^",     "elseif^", "elsif^",  "elif^",   "ei^",
+    "el^",     "for^",      "when^",   "other^",  "from^",   "to^",
+    "downto^", "step^",     "in^",     "while^",  "until^",  "next^",
+    "skip^",   "continue^", "repeat^", "do^",     "break^",  "return^",
+    "yield^",  "await^",    "defer^",  "with^",   "finally^",
+    "try^",    "catch^",    "panic^",  nullptr,
 };
 
 // What declares, and the operators 01 の 7 章 spells as words. true^ and
@@ -49,7 +49,7 @@ const char *const declaring_words[] = {
     "public^",   "require^", "import^",  "override^", "overload^",
     "abstract^", "closed^",  "errordef^",
     "true^",     "false^",
-    "and^",      "or^",      "is^",      "isa^",      "as^",     nullptr,
+    "and^",      "or^",      "is^",      "fits^",     "as^", nullptr,
 };
 
 // Self^ is a type where self^ is a value: 01 の 2.3 compares a hat word byte
@@ -62,7 +62,7 @@ const char *const type_words[] = {
 // The hat words that name a value rather than syntax. 05 の 8.6's L^ names
 // the machine; the rest name what the definition around them is applied to.
 const char *const value_words[] = {
-    "this^", "it^", "self^", "super^", "class^", "L^", nullptr,
+    "this^", "it^", "self^", "super^", "def^", "L^", nullptr,
 };
 
 // 02 の 9.2's clause words, each with the long spelling the parser also takes.

@@ -903,8 +903,8 @@ LhatRuntime.call_member("res://lib/api.lh", "numbers", [5])            # [1,4,9,
 
 ```powershell
 . .\scripts\devshell.ps1
-cmake --preset godot-debug        # 初回は godot-cpp を取得する
-cmake --build --preset godot-debug
+cmake --preset debug        # 初回は godot-cpp を取得する
+cmake --build --preset debug
 ```
 
 `godot-release` も同じ。前者は Godot の `template_debug`、後者は
