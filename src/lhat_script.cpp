@@ -678,9 +678,18 @@ Error LhatScript::reload_now(bool keep_state)
 // override^ to replace it, and compile_def flattens the chain into one
 // table, so what is read here is the nearest one written.
 //
-// Empty for a definition carrying none -- one that wraps nothing -- and
-// _get_instance_base_type falls back to Object, which is every object and
-// so refuses nothing.
+// Read off what `new` was written to take. The engine makes an object and
+// hands it to that constructor, so the type written there is the whole of
+// the question -- an answer that cannot disagree with itself, since a class
+// naming its engine class anywhere else would be saying the same thing twice
+// and one of the two could be wrong.
+//
+// 05 の 8.8改 makes godot.Sprite2D a registered type carrying its own tag, so
+// what comes back is the tag and its name is the engine's own spelling.
+//
+// Empty for a definition that takes no such object -- one that wraps nothing
+// -- and _get_instance_base_type falls back to Object, which is every object
+// and so refuses nothing.
 void LhatScript::read_base_class()
 {
     LhatMachine *machine = lhat_machine();
@@ -689,19 +698,34 @@ void LhatScript::read_base_class()
         return;
     }
     LhatValue key = lhat_nil();
-    if (!lhat_machine_make_string(machine, "gdBaseClass",
-                                  strlen("gdBaseClass"), &key)) {
+    if (!lhat_machine_make_string(machine, "new", strlen("new"), &key)) {
         return;
     }
-    LhatValue said =
+    LhatValue made =
         lhat_table_get((const LhatTable *)lhat_as_object(klass), key);
-    if (!lhat_is_object_kind(said, LHAT_OBJECT_STRING)) {
+    // 02 の 14.16: what typeof^ answers, which for a subroutine is the
+    // signature its proto has carried since it was compiled. The answer is
+    // the machine's and lives until the next call into it, which is why the
+    // name is copied out here rather than kept.
+    const LhatRuntimeType *signature = lhat_value_type(machine, made);
+    if (signature == nullptr ||
+        signature->kind != LHAT_TYPE_RT_SUBROUTINE ||
+        signature->part_count == 0) {
         return;
     }
-    const LhatString *text = (const LhatString *)lhat_as_object(said);
-    String named = String::utf8(text->text, (int)text->length);
+    // 14.4 keeps self^ out of the parameters, so the first is what a call
+    // writes -- and 14.11's new is called with the object and nothing else.
+    const LhatRuntimeType *first = signature->parts[0];
+    if (first == nullptr || first->kind != LHAT_TYPE_RT_HOSTDATA ||
+        first->hostdata_tag == nullptr) {
+        return;
+    }
+    String named = String::utf8(first->hostdata_tag->name);
     // A name the engine does not have is worse than none: the editor would
-    // refuse the script everywhere rather than allow it anywhere.
+    // refuse the script everywhere rather than allow it anywhere. Nothing
+    // registered should fail this, since the tags are generated from the
+    // engine's own class list -- but a host type of some other library's
+    // would, and that is exactly the one to refuse.
     if (ClassDB::class_exists(named)) {
         base_class = named;
     }
@@ -1500,8 +1524,7 @@ void LhatScript::_update_exports()
 
 // 02 の 14.7改 calls a value member of a definition a static constant, and
 // that is what this answers -- everything the definition holds that is
-// neither its prototype nor something to call. `gdBaseClass` is one, and a
-// derived class shows the one it inherited, since the table is flattened.
+// neither its prototype nor something to call.
 //
 // Read when asked rather than kept: the callers are few and none is per
 // frame -- the remote inspector's Constants section while a game runs, and

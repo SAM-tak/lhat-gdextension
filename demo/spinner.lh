@@ -23,12 +23,7 @@ public^let^Spinner = def^{
 		turns = 0,
 	},
 
-	override^new = f^obj:godot.Sprite2D {
-		self^{ gdobj = obj }
-	},
-
-	# 02 の 18: what the engine registers this class as.
-	gdBaseClass = "Sprite2D",
+	override^new = f^obj { self^{ gdobj = obj } },
 
 	delegate^self^.gdobj,
 
@@ -51,7 +46,7 @@ public^let^Spinner = def^{
 
 	on_timeout = p^self^{ self^.turns += 100 },
 
-	report = f^self^ -> string^{$"{self^.turns} frames, rotation {self^.get_rotation()}"},
+	report = f^self^{$"{self^.turns} frames, rotation {self^.get_rotation()}"},
 
 	_on_script_changed = p^self^ {
 		print("script changed")

@@ -20,20 +20,15 @@ public^let^Item = def^{
 		@export price = 0,
 	},
 
-	override^new = f^obj:godot.Resource {
-		self^{ gdobj = obj }
-	},
-
-	# 02 の 18: what the engine registers this class as.
-	gdBaseClass = "Resource",
+	override^new = f^obj { self^{ gdobj = obj } },
 
 	delegate^self^.gdobj,
 
-	describe = f^self^ -> string^ {
+	describe = f^self^{
 		$"{self^.name} costs {self^.price}"
 	},
 
-	raise = p^self^, by:number^ {
-		self^.price := self^.price + by
+	raise = p^self^, by {
+		self^.price += by
 	},
 }

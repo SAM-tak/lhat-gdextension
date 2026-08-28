@@ -12,13 +12,13 @@ public^let^ Counter = def^{
 	# The engine calls these by name, the same way it calls a GDScript's.
 	_ready = p^self^ { print($"{self^.name} is ready") },
 
-	_process = p^self^, delta:number^ { self^.ticks := self^.ticks + 1 },
+	_process = p^self^, delta:number^ { self^.ticks += 1 },
 
-	tick = p^self^ { self^.ticks := self^.ticks + 1 },
+	tick = p^self^ { self^.ticks += 1 },
 
-	count = f^self^ -> number^ { return^ self^.ticks },
+	count = f^self^ { return^ self^.ticks },
 
-	greet = f^self^, who:string^ -> string^ {
+	greet = f^self^, who:string^ {
 		return^ $"{self^.name} greets {who}"
 	},
 }

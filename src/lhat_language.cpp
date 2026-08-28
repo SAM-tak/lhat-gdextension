@@ -434,8 +434,13 @@ struct BuiltInTemplate {
 // type the checker knows and there is no library to inherit from. What a
 // class needs of the engine is the handle it holds, the constructor the
 // engine calls, and delegate^ (02 の 14.7改2) to show that class's members
-// as its own -- four lines the dialog writes once rather than a unit the
+// as its own -- three lines the dialog writes once rather than a unit the
 // project carries.
+//
+// Which engine class it is, is not among them. The extension reads that off
+// what new was written to take (LhatScript::read_base_class), so the type
+// written there is the only place it is said and there is no second spelling
+// for it to disagree with.
 const char *const node_template =
     "module^_CLASS_SNAKE_CASE_\n"
     "\n"
@@ -444,9 +449,9 @@ const char *const node_template =
     "@game\n"
     "public^let^_CLASS_ = def^{\n"
     "_TS_self^{\n"
-    "_TS__TS_# The node this is worn by. Its type is which engine class the\n"
-    "_TS__TS_# script may be put on, and delegate^ below is what shows that\n"
-    "_TS__TS_# class's members here.\n"
+    "_TS__TS_# The node this is worn by. new takes one, and the type\n"
+    "_TS__TS_# written there is what says which engine class this may be\n"
+    "_TS__TS_# put on; delegate^ below shows that class's members here.\n"
     "_TS__TS_abstract^gdobj : godot._BASE_,\n"
     "\n"
     "_TS__TS_@export speed = 1,\n"
@@ -455,9 +460,6 @@ const char *const node_template =
     "_TS_override^new = f^obj:godot._BASE_ {\n"
     "_TS__TS_self^{ gdobj = obj }\n"
     "_TS_},\n"
-    "\n"
-    "_TS_# 02 の 18: what the engine registers this class as.\n"
-    "_TS_gdBaseClass = \"_BASE_\",\n"
     "\n"
     "_TS_delegate^self^.gdobj,\n"
     "\n"
@@ -490,8 +492,6 @@ const char *const resource_template =
     "_TS_override^new = f^obj:godot._BASE_ {\n"
     "_TS__TS_self^{ gdobj = obj }\n"
     "_TS_},\n"
-    "\n"
-    "_TS_gdBaseClass = \"_BASE_\",\n"
     "\n"
     "_TS_delegate^self^.gdobj,\n"
     "}\n";
