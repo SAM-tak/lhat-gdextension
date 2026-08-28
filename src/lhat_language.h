@@ -96,6 +96,11 @@ public:
 
     // The world, made on the first ask. NULL when there was no memory.
     LhatProgram *world_program();
+
+    // 05 の 5.7: retires every unit and takes each one off the machine, so
+    // that rebuild_world reads the project again without making the world
+    // again. False when there is no world yet.
+    bool retire_every_unit();
     LhatMachine *world_machine() const { return machine; }
     host::Units *world_units() { return &units; }
     uint64_t world_generation() const { return generation; }
