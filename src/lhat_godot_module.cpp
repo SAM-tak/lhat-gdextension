@@ -150,7 +150,6 @@ void godot_is_valid(LhatMachine *machine, void *context,
     answers[0] = lhat_bool(count > 0 &&
                      owner_of(arguments[0], module_of(context)) != nullptr);
     *answer_count = 1;
-    return;
 }
 
 void godot_class_name(LhatMachine *machine, void *context,
@@ -169,7 +168,6 @@ void godot_class_name(LhatMachine *machine, void *context,
                              &made);
     answers[0] = made;
     *answer_count = 1;
-    return;
 }
 
 void godot_is_class(LhatMachine *machine, void *context,
@@ -186,7 +184,6 @@ void godot_is_class(LhatMachine *machine, void *context,
     }
     answers[0] = lhat_bool(object->is_class(name));
     *answer_count = 1;
-    return;
 }
 
 // 13.7: the signature ends in '...', so the tail arrives as the arguments
@@ -215,7 +212,6 @@ void godot_call(LhatMachine *machine, void *context,
     from_variant(machine, object->callv(name, passed), &made, module);
     answers[0] = made;
     *answer_count = 1;
-    return;
 }
 
 // The same shape as call, and separate because emitting is not calling: the
@@ -246,7 +242,6 @@ void godot_emit(LhatMachine *machine, void *context,
     // as one call rather than being spread here.
     passed.push_front(name);
     object->callv("emit_signal", passed);
-    return;
 }
 
 // 02 の 18.7改: the engine object a receiver stands for. A godot.Object
@@ -297,7 +292,6 @@ void signal_emit(LhatMachine *machine, void *context,
         passed.push_back(to_variant(arguments[i], emitter->module));
     }
     object->callv("emit_signal", passed);
-    return;
 }
 
 // 05 の 8.8: registering this is what makes the box the host's to hand over
@@ -316,7 +310,6 @@ void godot_dispose(LhatMachine *machine, void *context,
     if (handle != nullptr) {
         memdelete(handle);
     }
-    return;
 }
 
 // True in the editor and false in a game, including one launched from it.
@@ -332,7 +325,6 @@ void godot_is_editor_hint(LhatMachine *machine, void *context,
     (void)count;
     answers[0] = lhat_bool(Engine::get_singleton()->is_editor_hint());
     *answer_count = 1;
-    return;
 }
 
 
@@ -658,7 +650,6 @@ void bound_call(LhatMachine *machine, void *context,
     }
     answers[0] = answered(machine, method, owner, slots);
     *answer_count = 1;
-    return;
 }
 
 const Godot *register_godot(LhatProgram *program)

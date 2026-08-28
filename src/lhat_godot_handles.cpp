@@ -55,7 +55,6 @@ void callable_is_valid(LhatMachine *machine, void *context,
         count > 0 ? held_callable(arguments[0], module_of(context)) : nullptr;
     answers[0] = lhat_bool(held != nullptr && held->is_valid());
     *answer_count = 1;
-    return;
 }
 
 void callable_method(LhatMachine *machine, void *context,
@@ -67,7 +66,6 @@ void callable_method(LhatMachine *machine, void *context,
     answers[0] = text_answer(machine, held != nullptr ? String(held->get_method())
                                                 : String());
     *answer_count = 1;
-    return;
 }
 
 void callable_object(LhatMachine *machine, void *context,
@@ -83,7 +81,6 @@ void callable_object(LhatMachine *machine, void *context,
                ? out
                : lhat_nil();
     *answer_count = 1;
-    return;
 }
 
 // 12.6's variadic tail: what a call writes after the receiver is what the
@@ -106,7 +103,6 @@ void callable_call(LhatMachine *machine, void *context,
     answers[0] = from_variant(machine, held->callv(passed), &out, module) ? out
                                                                    : lhat_nil();
     *answer_count = 1;
-    return;
 }
 
 void callable_dispose(LhatMachine *machine, void *context,
@@ -122,7 +118,6 @@ void callable_dispose(LhatMachine *machine, void *context,
     if (held != nullptr) {
         memdelete(held);
     }
-    return;
 }
 
 // f^godot.Object, string^ -> godot.Callable
@@ -142,7 +137,6 @@ void make_callable_of(LhatMachine *machine, void *context,
                ? out
                : lhat_nil();
     *answer_count = 1;
-    return;
 }
 
 // ---------------------------------------------------------------------------
@@ -162,7 +156,6 @@ void signal_name(LhatMachine *machine, void *context,
     answers[0] = text_answer(machine,
                        held != nullptr ? String(held->get_name()) : String());
     *answer_count = 1;
-    return;
 }
 
 void signal_object(LhatMachine *machine, void *context,
@@ -178,7 +171,6 @@ void signal_object(LhatMachine *machine, void *context,
                ? out
                : lhat_nil();
     *answer_count = 1;
-    return;
 }
 
 void signal_is_null(LhatMachine *machine, void *context,
@@ -190,7 +182,6 @@ void signal_is_null(LhatMachine *machine, void *context,
         count > 0 ? held_signal(arguments[0], module_of(context)) : nullptr;
     answers[0] = lhat_bool(held == nullptr || held->is_null());
     *answer_count = 1;
-    return;
 }
 
 void signal_connect(LhatMachine *machine, void *context,
@@ -206,7 +197,6 @@ void signal_connect(LhatMachine *machine, void *context,
     if (held != nullptr && to != nullptr) {
         const_cast<Signal *>(held)->connect(*to);
     }
-    return;
 }
 
 void signal_disconnect(LhatMachine *machine, void *context,
@@ -222,7 +212,6 @@ void signal_disconnect(LhatMachine *machine, void *context,
     if (held != nullptr && from != nullptr) {
         const_cast<Signal *>(held)->disconnect(*from);
     }
-    return;
 }
 
 void signal_is_connected(LhatMachine *machine, void *context,
@@ -238,7 +227,6 @@ void signal_is_connected(LhatMachine *machine, void *context,
     answers[0] = lhat_bool(held != nullptr && to != nullptr &&
                      held->is_connected(*to));
     *answer_count = 1;
-    return;
 }
 
 // A signal is emitted through the object that carries it -- Signal::emit is a
@@ -262,7 +250,6 @@ void signal_emit(LhatMachine *machine, void *context,
         passed.push_back(to_variant(arguments[i], module));
     }
     object->callv("emit_signal", passed);
-    return;
 }
 
 void signal_dispose(LhatMachine *machine, void *context,
@@ -278,7 +265,6 @@ void signal_dispose(LhatMachine *machine, void *context,
     if (held != nullptr) {
         memdelete(held);
     }
-    return;
 }
 
 // f^godot.Object, string^ -> godot.Signal
@@ -298,7 +284,6 @@ void make_signal_of(LhatMachine *machine, void *context,
                ? out
                : lhat_nil();
     *answer_count = 1;
-    return;
 }
 
 }  // namespace

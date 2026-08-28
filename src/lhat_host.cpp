@@ -66,7 +66,6 @@ void host_print(LhatMachine *machine, void *context,
         line += text_of(arguments[i]);
     }
     UtilityFunctions::print(line);
-    return;
 }
 
 }  // namespace

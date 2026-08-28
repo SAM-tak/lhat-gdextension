@@ -194,7 +194,6 @@ void packed_size(LhatMachine *machine, void *context,
                               : nullptr;
     answers[0] = lhat_integer(held != nullptr ? held->size() : 0);
     *answer_count = 1;
-    return;
 }
 
 // 04 の 11.3: an index that is not there answers nothing rather than
@@ -218,7 +217,6 @@ void packed_at(LhatMachine *machine, void *context,
     // 02 の 14: a sequence is written from 1, so that is what is read here.
     answers[0] = element_out<E>(machine, module, (*held)[at - 1]);
     *answer_count = 1;
-    return;
 }
 
 template <typename P>
@@ -239,7 +237,6 @@ void packed_set(LhatMachine *machine, void *context,
         return;
     }
     held->set(at - 1, value);
-    return;
 }
 
 template <typename P>
@@ -257,7 +254,6 @@ void packed_append(LhatMachine *machine, void *context,
         return;
     }
     held->push_back(value);
-    return;
 }
 
 template <typename P>
@@ -271,7 +267,6 @@ void packed_clear(LhatMachine *machine, void *context,
     if (held != nullptr) {
         held->clear();
     }
-    return;
 }
 
 template <typename P>
@@ -285,7 +280,6 @@ void packed_dispose(LhatMachine *machine, void *context,
     if (held != nullptr) {
         memdelete(held);
     }
-    return;
 }
 
 // 02 の 16.3 with 05 の 8.8: the walk `for^ x in^ a` runs. One walk of one
@@ -335,7 +329,6 @@ void packed_walk_release(LhatMachine *machine, void *context,
     (void)arguments;
     (void)count;
     memdelete((PackedWalk<P> *)context);
-    return;
 }
 
 template <typename P>
@@ -362,7 +355,6 @@ void packed_iterate(LhatMachine *machine, void *context,
     }
     answers[0] = out;
     *answer_count = 1;
-    return;
 }
 
 template <typename P>
@@ -391,7 +383,6 @@ void make_packed_of(LhatMachine *machine, void *context,
     LhatValue out = lhat_nil();
     answers[0] = answer_packed(machine, module, P(), &out) ? out : lhat_nil();
     *answer_count = 1;
-    return;
 }
 
 template <typename P>

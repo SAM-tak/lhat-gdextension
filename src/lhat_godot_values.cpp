@@ -194,7 +194,6 @@ void paired(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, Op::of(left, right));
     *answer_count = 1;
-    return;
 }
 
 // f^self^, number^ -> T
@@ -211,7 +210,6 @@ void scaled(LhatMachine *machine, void *context,
     answers[0] = answer(machine, module,
                   Op::of(left, (C)number_of(arguments[1])));
     *answer_count = 1;
-    return;
 }
 
 // 02 の 11.3改: the self^ written last, so this is the arm '2 * v' finds --
@@ -229,7 +227,6 @@ void scaled_last(LhatMachine *machine, void *context,
     answers[0] = answer(machine, module,
                   Op::of(right, (C)number_of(arguments[0])));
     *answer_count = 1;
-    return;
 }
 
 // f^self^ -> T
@@ -245,7 +242,6 @@ void negated(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, -held);
     *answer_count = 1;
-    return;
 }
 
 // 02 の 14.17: what a value says when it is written out.
@@ -266,7 +262,6 @@ void as_text(LhatMachine *machine, void *context,
                ? out
                : lhat_nil();
     *answer_count = 1;
-    return;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,7 +280,6 @@ void make_xy(LhatMachine *machine, void *context,
     made.y = (C)number_of(arguments[1]);
     answers[0] = answer(machine, module_of(context), made);
     *answer_count = 1;
-    return;
 }
 
 template <typename T, typename C>
@@ -302,7 +296,6 @@ void make_xyz(LhatMachine *machine, void *context,
     made.z = (C)number_of(arguments[2]);
     answers[0] = answer(machine, module_of(context), made);
     *answer_count = 1;
-    return;
 }
 
 template <typename T, typename C>
@@ -320,7 +313,6 @@ void make_xyzw(LhatMachine *machine, void *context,
     made.w = (C)number_of(arguments[3]);
     answers[0] = answer(machine, module_of(context), made);
     *answer_count = 1;
-    return;
 }
 
 
@@ -340,7 +332,6 @@ void rid_id(LhatMachine *machine, void *context,
     }
     answers[0] = lhat_integer(held.get_id());
     *answer_count = 1;
-    return;
 }
 
 void make_color(LhatMachine *machine, void *context,
@@ -357,7 +348,6 @@ void make_color(LhatMachine *machine, void *context,
     made.a = (float)number_of(arguments[3]);
     answers[0] = answer(machine, module_of(context), made);
     *answer_count = 1;
-    return;
 }
 
 
@@ -389,7 +379,6 @@ void mixed(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, Op::of(left, right));
     *answer_count = 1;
-    return;
 }
 
 // One part of a shape, read out. 8.9 hands a host function a copy of the
@@ -408,7 +397,6 @@ void reads(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, Get(held));
     *answer_count = 1;
-    return;
 }
 
 Vector2 rect2_position(const Rect2 &r) { return r.position; }
@@ -447,7 +435,6 @@ void make_pair(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, T(first, second));
     *answer_count = 1;
-    return;
 }
 
 template <typename T, typename P>
@@ -466,7 +453,6 @@ void make_triple(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, T(first, second, third));
     *answer_count = 1;
-    return;
 }
 
 void make_plane(LhatMachine *machine, void *context,
@@ -481,7 +467,6 @@ void make_plane(LhatMachine *machine, void *context,
     answers[0] = answer(machine, module,
                   Plane(normal, (real_t)number_of(arguments[1])));
     *answer_count = 1;
-    return;
 }
 
 void make_transform3d(LhatMachine *machine, void *context,
@@ -497,7 +482,6 @@ void make_transform3d(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, Transform3D(basis, origin));
     *answer_count = 1;
-    return;
 }
 
 void make_projection(LhatMachine *machine, void *context,
@@ -517,7 +501,6 @@ void make_projection(LhatMachine *machine, void *context,
     answers[0] = answer(machine, module,
                   Projection(columns[0], columns[1], columns[2], columns[3]));
     *answer_count = 1;
-    return;
 }
 
 // ---------------------------------------------------------------------------
@@ -542,7 +525,6 @@ void measures(LhatMachine *machine, void *context,
     }
     answers[0] = lhat_real(Get(held));
     *answer_count = 1;
-    return;
 }
 
 // f^self^, T -> number^
@@ -563,7 +545,6 @@ void measures_same(LhatMachine *machine, void *context,
     }
     answers[0] = lhat_real(Get(left, right));
     *answer_count = 1;
-    return;
 }
 
 // f^self^, U -> number^
@@ -584,7 +565,6 @@ void measures_other(LhatMachine *machine, void *context,
     }
     answers[0] = lhat_real(Get(left, right));
     *answer_count = 1;
-    return;
 }
 
 // f^self^, U -> bool^
@@ -605,7 +585,6 @@ void asks_other(LhatMachine *machine, void *context,
     }
     answers[0] = lhat_bool(Get(left, right));
     *answer_count = 1;
-    return;
 }
 
 // f^self^, number^ -> T
@@ -621,7 +600,6 @@ void turned(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, Get(held, number_of(arguments[1])));
     *answer_count = 1;
-    return;
 }
 
 // f^self^, T, number^ -> T
@@ -640,7 +618,6 @@ void blended(LhatMachine *machine, void *context,
     answers[0] = answer(machine, module,
                   Get(left, right, number_of(arguments[2])));
     *answer_count = 1;
-    return;
 }
 
 // f^self^, T -> T, named rather than spelled as an operator.
@@ -658,7 +635,6 @@ void joined(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, Get(left, right));
     *answer_count = 1;
-    return;
 }
 
 // f^self^, U -> U
@@ -676,7 +652,6 @@ void applied(LhatMachine *machine, void *context,
     }
     answers[0] = answer(machine, module, Get(left, right));
     *answer_count = 1;
-    return;
 }
 
 // The engine's methods, reached through a pointer a template can name.
@@ -914,7 +889,6 @@ void object_get(LhatMachine *machine, void *context,
     // is the same reason these are one pair per type in the first place.
     answers[0] = answer(machine, module, (T)object->get(named));
     *answer_count = 1;
-    return;
 }
 
 // p^self^, string^, T
@@ -933,7 +907,6 @@ void object_set(LhatMachine *machine, void *context,
         return;
     }
     object->set(named, Variant(value));
-    return;
 }
 
 template <typename T>
