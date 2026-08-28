@@ -1,17 +1,33 @@
 # A custom resource: fields the inspector edits, saved as a .tres, handed to
 # a node through an @export. What `extends Resource` is for in GDScript, and
 # the one thing a script is worn by that is not a Node.
+#
+# 05 の 8.8改 puts the engine's tree on the host side, so godot.Resource is a
+# type the checker knows and there is nothing to inherit from: the handle,
+# the constructor and delegate^ (02 の 14.7改2) are what a class needs of the
+# engine, and the dialog writes all three.
 
 module^demo.item
 
-let^Godot = require^"lhat/Godot/Resource.lh"
+import^godot
 
 @export_class
-public^let^Item = Godot.Resource..def^{
+public^let^Item = def^{
 	self^{
+		abstract^gdobj : godot.Resource,
+
 		@export name = "nothing",
 		@export price = 0,
 	},
+
+	override^new = f^obj:godot.Resource {
+		self^{ gdobj = obj }
+	},
+
+	# 02 の 18: what the engine registers this class as.
+	gdBaseClass = "Resource",
+
+	delegate^self^.gdobj,
 
 	describe = f^self^ -> string^ {
 		$"{self^.name} costs {self^.price}"

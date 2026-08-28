@@ -1,23 +1,36 @@
-# A script a node wears, written against the wrapper library rather than
-# against godot.Object directly. The `..` is the engine's inheritance: this
-# is a Sprite2D, so everything Node2D, Node and Object declare is here too.
+# A script a node wears. 05 の 8.8改 puts the engine's tree on the host side,
+# so godot.Sprite2D is a type the checker knows: what says this is a Sprite2D
+# is the handle's own type, and delegate^ (02 の 14.7改2) is what shows that
+# class's members -- everything Node2D, Node and Object declare included --
+# without a forwarding member for any of them.
 
 module^demo.spinner
 
-let^Godot = require^"lhat/Godot/Node2D.lh"
+import^godot
 
 # くるくる回る
 #
 # 横滑りしながらくるくる回るだけ
 @game @export_class
-public^let^Spinner = Godot.Sprite2D..def^{
+public^let^Spinner = def^{
 	self^{
+		abstract^gdobj : godot.Sprite2D,
+
 		# 回転速度
 		@export_range(0, 10) speed = 1,
 		# スライド速度
 		@export_range(0, 5000) slideSpeed = 500,
 		turns = 0,
 	},
+
+	override^new = f^obj:godot.Sprite2D {
+		self^{ gdobj = obj }
+	},
+
+	# 02 の 18: what the engine registers this class as.
+	gdBaseClass = "Sprite2D",
+
+	delegate^self^.gdobj,
 
 	@signal died = p^self^, message:string^{}, # 空なら勝手に埋めてくれる
 

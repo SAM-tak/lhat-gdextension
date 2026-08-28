@@ -420,8 +420,9 @@ namespace {
 // _update_template_menu), so a row kept under Object is offered for every
 // base and a row kept under Node for every node.
 //
-// Three, because a .lh is one of two things (05 の 3.2) and the one with a
-// module^ is written two ways: worn by a node, or reached by require^.
+// Four, because a .lh is one of two things (05 の 3.2) and the one with a
+// module^ is written three ways: worn by a node, worn by a resource, or
+// reached by require^.
 struct BuiltInTemplate {
     const char *inherit;
     const char *name;
@@ -429,19 +430,36 @@ struct BuiltInTemplate {
     const char *content;
 };
 
+// 05 の 8.8改 puts the engine's tree on the host side, so godot._BASE_ is a
+// type the checker knows and there is no library to inherit from. What a
+// class needs of the engine is the handle it holds, the constructor the
+// engine calls, and delegate^ (02 の 14.7改2) to show that class's members
+// as its own -- four lines the dialog writes once rather than a unit the
+// project carries.
 const char *const node_template =
     "module^_CLASS_SNAKE_CASE_\n"
     "\n"
-    "# The wrapper is the project's own, and inheriting from it is what says\n"
-    "# which engine class a node has to be. Add Godot._BASE_ to it if it is\n"
-    "# not there yet.\n"
-    "let^Godot = require^\"lhat/Godot.lh\"\n"
+    "import^godot\n"
     "\n"
     "@game\n"
-    "public^let^_CLASS_ = Godot._BASE_..def^{\n"
+    "public^let^_CLASS_ = def^{\n"
     "_TS_self^{\n"
+    "_TS__TS_# The node this is worn by. Its type is which engine class the\n"
+    "_TS__TS_# script may be put on, and delegate^ below is what shows that\n"
+    "_TS__TS_# class's members here.\n"
+    "_TS__TS_abstract^gdobj : godot._BASE_,\n"
+    "\n"
     "_TS__TS_@export speed = 1,\n"
     "_TS_},\n"
+    "\n"
+    "_TS_override^new = f^obj:godot._BASE_ {\n"
+    "_TS__TS_self^{ gdobj = obj }\n"
+    "_TS_},\n"
+    "\n"
+    "_TS_# 02 の 18: what the engine registers this class as.\n"
+    "_TS_gdBaseClass = \"_BASE_\",\n"
+    "\n"
+    "_TS_delegate^self^.gdobj,\n"
     "\n"
     "_TS_# Once, when the node enters the tree.\n"
     "_TS__ready = p^self^{\n"
@@ -450,6 +468,32 @@ const char *const node_template =
     "_TS_# Every frame. `delta` is how long the last one took, in seconds.\n"
     "_TS__process = p^self^, delta:number^{\n"
     "_TS_},\n"
+    "}\n";
+
+// The same shape for the other thing a script is worn by (05 の 8.8改 again,
+// and demo/item.lh): a resource is data the inspector edits and a .tres
+// keeps, so what it has instead of _ready is @export fields.
+const char *const resource_template =
+    "module^_CLASS_SNAKE_CASE_\n"
+    "\n"
+    "import^godot\n"
+    "\n"
+    "@export_class\n"
+    "public^let^_CLASS_ = def^{\n"
+    "_TS_self^{\n"
+    "_TS__TS_abstract^gdobj : godot._BASE_,\n"
+    "\n"
+    "_TS__TS_# What the inspector edits and a .tres keeps.\n"
+    "_TS__TS_@export name = \"\",\n"
+    "_TS_},\n"
+    "\n"
+    "_TS_override^new = f^obj:godot._BASE_ {\n"
+    "_TS__TS_self^{ gdobj = obj }\n"
+    "_TS_},\n"
+    "\n"
+    "_TS_gdBaseClass = \"_BASE_\",\n"
+    "\n"
+    "_TS_delegate^self^.gdobj,\n"
     "}\n";
 
 const char *const module_template =
@@ -472,6 +516,8 @@ const char *const editor_script_template =
 const BuiltInTemplate built_in_templates[] = {
     {"Node", "Node script", "A class a node wears, and the marks that say so",
      node_template},
+    {"Resource", "Custom resource",
+     "Data the inspector edits and a .tres keeps", resource_template},
     {"Object", "Module", "A unit require^ reaches. Nothing wears it",
      module_template},
     {"EditorScript", "Editor script", "Statements File > Run runs, once",

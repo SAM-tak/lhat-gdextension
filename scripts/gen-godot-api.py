@@ -35,7 +35,6 @@ API = os.path.join(ROOT, "build", "godot-cpp", "gdextension",
                    "extension_api.json")
 CLASSES = os.path.join(HERE, "godot-classes.txt")
 OUT = os.path.join(ROOT, "src", "lhat_godot_api.gen.cpp")
-LH_DIR = os.path.join(ROOT, "demo", "lhat", "Godot")
 DOCS_OUT = os.path.join(ROOT, "docs", "godot-classes.md")
 
 # 05 の 8.9: the value types the module registers, whose bytes are the engine's
@@ -144,35 +143,15 @@ def offerable(name, classes):
             name not in ("MissingNode", "MissingResource"))
 
 
-# 03 の 5.2: a register is one byte and LHAT_MAX_REGISTERS is 250, so a unit
-# holds only so many bindings -- fewer than 250, since compiling each def^
-# wants registers of its own on the way. Measured with units of nothing but
-# wrappers: 180 loads and 200 does not. So the wrappers are written one file
-# per line of godot-classes.txt -- a line names a branch and the file is that
-# branch. Nothing composes between wrappers (each holds its own class's
-# handle), so where a wrapper lives is free.
-MAX_PER_UNIT = 180
-
-
 def selected(classes, api):
-    """(groups, singletons) -- see below.
+    """(classes to register, singletons), in the order the list names them.
 
-    groups is [(group name, [class, ...]), ...], in the order the list names
-    them.
-
-    A group carries the whole ancestry of what it names, so each file stands
-    on its own: reading lhat/Godot/Node3D.lh is enough to write a Node3D or
-    anything under it. The trunk therefore appears in more than one file, and
-    that is fine -- nothing composes between wrappers and each holds its own
-    class's handle, so two files declaring a wrapper for godot.Node declare
-    the same shape over the same host type.
-
-    A line that reaches nothing new after the lines before it is dropped, so
-    `under Node` written last is the Nodes no branch above it covered.
+    Nothing here is split into files any more: 05 の 8.8改 put the engine's
+    tree on the host side, so what a script writes against is godot.Sprite2D
+    itself and there is no wrapper unit for a register file to run out of.
     """
-    groups = []
+    wanted = []
     singletons = []
-    covered = set()
     # 05 の 8.7: a singleton is a class the engine holds one instance of, and
     # a script never has that instance -- GDScript writes the class name and
     # calls through it. So these are not part of the class tree at all: they
@@ -211,35 +190,11 @@ def selected(classes, api):
                     sys.exit("no engine class named " + named)
                 leaves = [named]
 
-            # Only what no earlier line already put in a file of its own.
-            fresh = [n for n in leaves if n not in covered]
-            if not fresh:
-                continue
-            covered.update(fresh)
-
-            # The ancestry of what is new here, so the file stands alone
-            # without carrying leaves an earlier file already wrote.
-            here = []
-            for leaf in fresh:
+            for leaf in leaves:
                 for step in chain(leaf, classes):
-                    if step not in here:
-                        here.append(step)
-            if len(here) > MAX_PER_UNIT:
-                sys.exit("%s takes %d classes with its ancestry; a unit holds "
-                         "%d. Name narrower branches."
-                         % (named, len(here), MAX_PER_UNIT))
-            groups.append((named, here))
-    return groups, singletons
-
-
-def every(groups):
-    """Every class the groups name, once each, in order."""
-    out = []
-    for _, names in groups:
-        for name in names:
-            if name not in out:
-                out.append(name)
-    return out
+                    if step not in wanted:
+                        wanted.append(step)
+    return wanted, singletons
 
 
 def gather(api, classes, wanted, singletons=()):
@@ -483,82 +438,6 @@ ROOT_MEMBERS = """\tself^{ abstract^gdobj : godot.Object },
 ROOT_NAMES = {"gdobj", "new", "gdBaseClass", "isValid", "className", "emit"}
 
 
-# 01 の 6 章: a hat binds to what follows it, and a .lh is written with no
-# space after one. So the code below writes none -- a regeneration leaves what
-# the formatter would write alone. A comment is prose and keeps its spaces.
-# 05 の 8.8改 puts the engine's tree on the host side, so what is left for L^
-# is one wrapper per class -- something a script can compose onto, and
-# something to hang @export fields off. Every member of the engine class shows
-# through delegate^ (02 の 14.7改2), which makes no forwarding procedures: the
-# name is looked for through the handle when neither the instance nor the
-# definition has it.
-#
-# No composition between the wrappers. A composed def^ cannot narrow an
-# inherited field (override^ marks a member, not the fields), so a Sprite2D
-# wrapper composed onto a Node2D one would still hold a godot.Node2D and
-# delegate to that. Each wrapper holding its own class's handle relates them
-# anyway: 14.10's width subtyping, since the host type inherited the base's
-# members, and member conformance is covariant over the field.
-WRAPPER = """public^let^{name} = def^{{
-\tself^{{ abstract^gdobj : godot.{name} }},
-
-\toverride^new = f^obj:godot.{name} {{
-\t\tself^{{ gdobj = obj }}
-\t}},
-
-\t# 02 の 18: what the engine registers this class as.
-\tgdBaseClass = "{name}",
-
-\tdelegate^self^.gdobj
-}}"""
-
-
-def write_lh(api, classes, groups, rows):
-    for named, names in groups:
-        write_one_lh(api, named, names)
-    print("%s: %d units, %d wrappers"
-          % (os.path.relpath(LH_DIR, ROOT), len(groups),
-             len(every(groups))))
-
-
-def write_one_lh(api, named, wanted):
-    out = []
-    say = out.append
-    say("# L^ (lhat) -- GENERATED by scripts/gen-godot-api.py. "
-        "Do not edit.")
-    say("#")
-    say("# The wrappers under %s. One per engine class, and the tree" % named)
-    say("# itself is on the host side (05 の 8.8改): godot.Sprite2D is")
-    say("# declared under godot.Node2D and stands wherever one is asked for,")
-    say("# so nothing here composes -- which is also why it does not matter")
-    say("# which of these files a wrapper lives in.")
-    say("#")
-    say("# delegate^ (02 の 14.7改2) is what shows the class's members")
-    say("# through the wrapper. It makes no forwarding procedures at all --")
-    say("# the name is looked for through the handle -- so this file costs a")
-    say("# few lines per class however many methods that class has.")
-    say("#")
-    say("# The members are spelt as the engine spells them: set_rotation, not")
-    say("# setRotation. What a script writes is what Godot's own")
-    say("# documentation says.")
-    say("#")
-    say("# From %s." % api["header"]["version_full_name"])
-    say("")
-    say("module^lhat.Godot.%s" % named)
-    say("")
-    say("import^godot")
-    for name in wanted:
-        say("")
-        say(WRAPPER.format(name=name))
-    say("")
-
-    if not os.path.isdir(LH_DIR):
-        os.makedirs(LH_DIR)
-    where = os.path.join(LH_DIR, named + ".lh")
-    with open(where, "w", encoding="utf-8", newline="\n") as target:
-        target.write("\n".join(out))
-
-
 def callable_methods(name, classes):
     """(bound, reachable) for one class's own methods."""
     reachable = 0
@@ -586,13 +465,9 @@ def unbound_reason(method, classes, wanted):
     return None
 
 
-def write_docs(api, classes, groups, singletons, rows):
+def write_docs(api, classes, registered, singletons, rows):
     """docs/godot-classes.md: what reaches L^ and what does not."""
-    wanted = every(groups) + list(singletons)
-    lives_in = {}
-    for named, names in groups:
-        for name in names:
-            lives_in.setdefault(name, []).append(named)
+    wanted = list(registered) + list(singletons)
     bound = {}
     for row in rows:
         bound[row["class"]] = bound.get(row["class"], 0) + 1
@@ -631,10 +506,8 @@ def write_docs(api, classes, groups, singletons, rows):
     say("`python scripts/gen-godot-api.py` で増える。")
     say("")
     say("- エンジンのクラス: **%d**" % len(classes))
-    say("- L^ に登録済み: **%d**（%s）"
-        % (len(wanted),
-           "、".join("`%s.lh` %d" % (named, len(names))
-                     for named, names in groups)))
+    say("- L^ に登録済み: **%d**（うち singleton %d）"
+        % (len(wanted), len(singletons)))
     say("- バインドされたメソッド: **%d**" % len(rows))
     say("")
     say("メソッド数は「バインド済み / 呼べるもの」。呼べるものからは")
@@ -648,7 +521,7 @@ def write_docs(api, classes, groups, singletons, rows):
         say("")
         say(note)
         say("")
-        say("| クラス | 親 | L^ | メソッド | require^ |")
+        say("| クラス | 親 | L^ | メソッド | 書き方 |")
         say("|---|---|---|---|---|")
         for name in sorted(names):
             described = classes[name]
@@ -657,10 +530,9 @@ def write_docs(api, classes, groups, singletons, rows):
                 mark = "○"
                 counted = "%d / %d" % (bound.get(name, 0), reachable)
                 if name in singletons:
-                    where = "`godot.%s`" % name
+                    where = "`godot.%s.<method>()`" % name
                 else:
-                    where = "、".join("`lhat/Godot/%s.lh`" % one
-                                      for one in lives_in[name])
+                    where = "`godot.%s`" % name
             else:
                 mark = "—"
                 counted = "0 / %d" % reachable
@@ -697,12 +569,10 @@ def main():
     with open(API, encoding="utf-8") as source:
         api = json.load(source)
     classes = {c["name"]: c for c in api["classes"]}
-    groups, singletons = selected(classes, api)
-    wanted = every(groups)
+    wanted, singletons = selected(classes, api)
     rows, left_out = gather(api, classes, wanted, singletons)
     write(api, classes, wanted, rows, left_out)
-    write_lh(api, classes, groups, rows)
-    write_docs(api, classes, groups, singletons, rows)
+    write_docs(api, classes, wanted, singletons, rows)
 
 
 if __name__ == "__main__":
