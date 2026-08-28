@@ -46,87 +46,103 @@ const Callable *held_callable(LhatValue value, const Godot *module)
                                                    module->callable_tag);
 }
 
-LhatValue callable_is_valid(LhatMachine *machine, void *context,
-                            const LhatValue *arguments, size_t count)
+void callable_is_valid(LhatMachine *machine, void *context,
+                            const LhatValue *arguments, size_t count,
+                            LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Callable *held =
         count > 0 ? held_callable(arguments[0], module_of(context)) : nullptr;
-    return lhat_bool(held != nullptr && held->is_valid());
+    answers[0] = lhat_bool(held != nullptr && held->is_valid());
+    *answer_count = 1;
+    return;
 }
 
-LhatValue callable_method(LhatMachine *machine, void *context,
-                          const LhatValue *arguments, size_t count)
+void callable_method(LhatMachine *machine, void *context,
+                          const LhatValue *arguments, size_t count,
+                          LhatValue *answers, int *answer_count)
 {
     const Callable *held =
         count > 0 ? held_callable(arguments[0], module_of(context)) : nullptr;
-    return text_answer(machine, held != nullptr ? String(held->get_method())
+    answers[0] = text_answer(machine, held != nullptr ? String(held->get_method())
                                                 : String());
+    *answer_count = 1;
+    return;
 }
 
-LhatValue callable_object(LhatMachine *machine, void *context,
-                          const LhatValue *arguments, size_t count)
+void callable_object(LhatMachine *machine, void *context,
+                          const LhatValue *arguments, size_t count,
+                          LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     const Callable *held = count > 0 ? held_callable(arguments[0], module)
                                      : nullptr;
     LhatValue out = lhat_nil();
-    return make_object(machine, module,
+    answers[0] = make_object(machine, module,
                        held != nullptr ? held->get_object() : nullptr, &out)
                ? out
                : lhat_nil();
+    *answer_count = 1;
+    return;
 }
 
 // 12.6's variadic tail: what a call writes after the receiver is what the
 // Callable is handed.
-LhatValue callable_call(LhatMachine *machine, void *context,
-                        const LhatValue *arguments, size_t count)
+void callable_call(LhatMachine *machine, void *context,
+                        const LhatValue *arguments, size_t count,
+                        LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     const Callable *held = count > 0 ? held_callable(arguments[0], module)
                                      : nullptr;
     if (held == nullptr) {
-        return lhat_nil();
+        return;
     }
     Array passed;
     for (size_t i = 1; i < count; i++) {
         passed.push_back(to_variant(arguments[i], module));
     }
     LhatValue out = lhat_nil();
-    return from_variant(machine, held->callv(passed), &out, module) ? out
+    answers[0] = from_variant(machine, held->callv(passed), &out, module) ? out
                                                                    : lhat_nil();
+    *answer_count = 1;
+    return;
 }
 
-LhatValue callable_dispose(LhatMachine *machine, void *context,
-                           const LhatValue *arguments, size_t count)
+void callable_dispose(LhatMachine *machine, void *context,
+                           const LhatValue *arguments, size_t count,
+                           LhatValue *answers, int *answer_count)
 {
     (void)machine;
     if (count == 0) {
-        return lhat_nil();
+        return;
     }
     Callable *held = (Callable *)lhat_hostdata_pointer(
         arguments[0], module_of(context)->callable_tag);
     if (held != nullptr) {
         memdelete(held);
     }
-    return lhat_nil();
+    return;
 }
 
 // f^godot.Object, string^ -> godot.Callable
-LhatValue make_callable_of(LhatMachine *machine, void *context,
-                           const LhatValue *arguments, size_t count)
+void make_callable_of(LhatMachine *machine, void *context,
+                           const LhatValue *arguments, size_t count,
+                           LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     String named;
     Object *object = count > 0 ? object_of(arguments[0], module) : nullptr;
     if (count < 2 || !name_of(arguments[1], &named)) {
-        return lhat_nil();
+        return;
     }
     LhatValue out = lhat_nil();
-    return make_callable(machine, module, Callable(object, StringName(named)),
+    answers[0] = make_callable(machine, module, Callable(object, StringName(named)),
                          &out)
                ? out
                : lhat_nil();
+    *answer_count = 1;
+    return;
 }
 
 // ---------------------------------------------------------------------------
@@ -137,39 +153,49 @@ const Signal *held_signal(LhatValue value, const Godot *module)
     return (const Signal *)lhat_hostdata_pointer(value, module->signal_tag);
 }
 
-LhatValue signal_name(LhatMachine *machine, void *context,
-                      const LhatValue *arguments, size_t count)
+void signal_name(LhatMachine *machine, void *context,
+                      const LhatValue *arguments, size_t count,
+                      LhatValue *answers, int *answer_count)
 {
     const Signal *held =
         count > 0 ? held_signal(arguments[0], module_of(context)) : nullptr;
-    return text_answer(machine,
+    answers[0] = text_answer(machine,
                        held != nullptr ? String(held->get_name()) : String());
+    *answer_count = 1;
+    return;
 }
 
-LhatValue signal_object(LhatMachine *machine, void *context,
-                        const LhatValue *arguments, size_t count)
+void signal_object(LhatMachine *machine, void *context,
+                        const LhatValue *arguments, size_t count,
+                        LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     const Signal *held = count > 0 ? held_signal(arguments[0], module)
                                    : nullptr;
     LhatValue out = lhat_nil();
-    return make_object(machine, module,
+    answers[0] = make_object(machine, module,
                        held != nullptr ? held->get_object() : nullptr, &out)
                ? out
                : lhat_nil();
+    *answer_count = 1;
+    return;
 }
 
-LhatValue signal_is_null(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void signal_is_null(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Signal *held =
         count > 0 ? held_signal(arguments[0], module_of(context)) : nullptr;
-    return lhat_bool(held == nullptr || held->is_null());
+    answers[0] = lhat_bool(held == nullptr || held->is_null());
+    *answer_count = 1;
+    return;
 }
 
-LhatValue signal_connect(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void signal_connect(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
@@ -180,11 +206,12 @@ LhatValue signal_connect(LhatMachine *machine, void *context,
     if (held != nullptr && to != nullptr) {
         const_cast<Signal *>(held)->connect(*to);
     }
-    return lhat_nil();
+    return;
 }
 
-LhatValue signal_disconnect(LhatMachine *machine, void *context,
-                            const LhatValue *arguments, size_t count)
+void signal_disconnect(LhatMachine *machine, void *context,
+                            const LhatValue *arguments, size_t count,
+                            LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
@@ -195,11 +222,12 @@ LhatValue signal_disconnect(LhatMachine *machine, void *context,
     if (held != nullptr && from != nullptr) {
         const_cast<Signal *>(held)->disconnect(*from);
     }
-    return lhat_nil();
+    return;
 }
 
-LhatValue signal_is_connected(LhatMachine *machine, void *context,
-                              const LhatValue *arguments, size_t count)
+void signal_is_connected(LhatMachine *machine, void *context,
+                              const LhatValue *arguments, size_t count,
+                              LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
@@ -207,15 +235,18 @@ LhatValue signal_is_connected(LhatMachine *machine, void *context,
                                    : nullptr;
     const Callable *to = count > 1 ? held_callable(arguments[1], module)
                                    : nullptr;
-    return lhat_bool(held != nullptr && to != nullptr &&
+    answers[0] = lhat_bool(held != nullptr && to != nullptr &&
                      held->is_connected(*to));
+    *answer_count = 1;
+    return;
 }
 
 // A signal is emitted through the object that carries it -- Signal::emit is a
 // template over C++ arguments and has no run-time arity, and emit_signal
 // takes the name and the rest.
-LhatValue signal_emit(LhatMachine *machine, void *context,
-                      const LhatValue *arguments, size_t count)
+void signal_emit(LhatMachine *machine, void *context,
+                      const LhatValue *arguments, size_t count,
+                      LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
@@ -223,7 +254,7 @@ LhatValue signal_emit(LhatMachine *machine, void *context,
                                    : nullptr;
     Object *object = held != nullptr ? held->get_object() : nullptr;
     if (object == nullptr) {
-        return lhat_nil();
+        return;
     }
     Array passed;
     passed.push_back(held->get_name());
@@ -231,39 +262,43 @@ LhatValue signal_emit(LhatMachine *machine, void *context,
         passed.push_back(to_variant(arguments[i], module));
     }
     object->callv("emit_signal", passed);
-    return lhat_nil();
+    return;
 }
 
-LhatValue signal_dispose(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void signal_dispose(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     (void)machine;
     if (count == 0) {
-        return lhat_nil();
+        return;
     }
     Signal *held = (Signal *)lhat_hostdata_pointer(
         arguments[0], module_of(context)->signal_tag);
     if (held != nullptr) {
         memdelete(held);
     }
-    return lhat_nil();
+    return;
 }
 
 // f^godot.Object, string^ -> godot.Signal
-LhatValue make_signal_of(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void make_signal_of(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     String named;
     Object *object = count > 0 ? object_of(arguments[0], module) : nullptr;
     if (object == nullptr || count < 2 || !name_of(arguments[1], &named)) {
-        return lhat_nil();
+        return;
     }
     LhatValue out = lhat_nil();
-    return make_signal(machine, module, Signal(object, StringName(named)),
+    answers[0] = make_signal(machine, module, Signal(object, StringName(named)),
                        &out)
                ? out
                : lhat_nil();
+    *answer_count = 1;
+    return;
 }
 
 }  // namespace

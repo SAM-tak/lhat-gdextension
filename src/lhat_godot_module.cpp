@@ -139,56 +139,72 @@ LhatValue by_name(LhatMachine *machine, const BoundMethod *method,
 
 // ---------------------------------------------------------------------------
 
-LhatValue godot_is_valid(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void godot_is_valid(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     (void)machine;
     // Whether ObjectDB still answers to the id, which owner_of asks straight
     // -- nothing here calls a method on the object, so nothing here needs
     // godot-cpp's instance binding.
-    return lhat_bool(count > 0 &&
+    answers[0] = lhat_bool(count > 0 &&
                      owner_of(arguments[0], module_of(context)) != nullptr);
+    *answer_count = 1;
+    return;
 }
 
-LhatValue godot_class_name(LhatMachine *machine, void *context,
-                           const LhatValue *arguments, size_t count)
+void godot_class_name(LhatMachine *machine, void *context,
+                           const LhatValue *arguments, size_t count,
+                           LhatValue *answers, int *answer_count)
 {
     Object *object = receiver(arguments, count, context);
     if (object == nullptr) {
-        return gone("className", arguments[0], module_of(context));
+        answers[0] = gone("className", arguments[0], module_of(context));
+        *answer_count = 1;
+        return;
     }
     CharString text = object->get_class().utf8();
     LhatValue made = lhat_nil();
     lhat_machine_make_string(machine, text.get_data(), (size_t)text.length(),
                              &made);
-    return made;
+    answers[0] = made;
+    *answer_count = 1;
+    return;
 }
 
-LhatValue godot_is_class(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void godot_is_class(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     (void)machine;
     Object *object = receiver(arguments, count, context);
     String name;
     if (object == nullptr || count < 2 || !text_of(arguments[1], &name)) {
-        return lhat_bool(false);
+        answers[0] = lhat_bool(false);
+        *answer_count = 1;
+        return;
     }
-    return lhat_bool(object->is_class(name));
+    answers[0] = lhat_bool(object->is_class(name));
+    *answer_count = 1;
+    return;
 }
 
 // 13.7: the signature ends in '...', so the tail arrives as the arguments
 // after the name -- uncollected, which is what a C function wants.
-LhatValue godot_call(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count)
+void godot_call(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     Object *object = receiver(arguments, count, context);
     String name;
     if (object == nullptr) {
-        return gone("call", arguments[0], module);
+        answers[0] = gone("call", arguments[0], module);
+        *answer_count = 1;
+        return;
     }
     if (count < 2 || !text_of(arguments[1], &name)) {
-        return lhat_nil();
+        return;
     }
 
     Array passed;
@@ -197,24 +213,29 @@ LhatValue godot_call(LhatMachine *machine, void *context,
     }
     LhatValue made = lhat_nil();
     from_variant(machine, object->callv(name, passed), &made, module);
-    return made;
+    answers[0] = made;
+    *answer_count = 1;
+    return;
 }
 
 // The same shape as call, and separate because emitting is not calling: the
 // name reaches every connection rather than one method. What a body marked
 // @signal is written around.
-LhatValue godot_emit(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count)
+void godot_emit(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
     Object *object = receiver(arguments, count, context);
     String name;
     if (object == nullptr) {
-        return gone("emit", arguments[0], module);
+        answers[0] = gone("emit", arguments[0], module);
+        *answer_count = 1;
+        return;
     }
     if (count < 2 || !text_of(arguments[1], &name)) {
-        return lhat_nil();
+        return;
     }
 
     Array passed;
@@ -225,7 +246,7 @@ LhatValue godot_emit(LhatMachine *machine, void *context,
     // as one call rather than being spread here.
     passed.push_front(name);
     object->callv("emit_signal", passed);
-    return lhat_nil();
+    return;
 }
 
 // 02 の 18.7改: the engine object a receiver stands for. A godot.Object
@@ -253,16 +274,19 @@ Object *engine_object_of(LhatMachine *machine, LhatValue self,
 // What an empty-bodied @signal member is filled with. The same road
 // godot_emit takes, with the name coming from the registration rather than
 // from an argument -- which is the whole of what writing the body did.
-LhatValue signal_emit(LhatMachine *machine, void *context,
-                      const LhatValue *arguments, size_t count)
+void signal_emit(LhatMachine *machine, void *context,
+                      const LhatValue *arguments, size_t count,
+                      LhatValue *answers, int *answer_count)
 {
     const SignalEmitter *emitter = (const SignalEmitter *)context;
     if (emitter == nullptr || count == 0) {
-        return lhat_nil();
+        return;
     }
     Object *object = engine_object_of(machine, arguments[0], emitter->module);
     if (object == nullptr) {
-        return gone("emit", arguments[0], emitter->module);
+        answers[0] = gone("emit", arguments[0], emitter->module);
+        *answer_count = 1;
+        return;
     }
 
     // 13.4 leaves self^ out of what a caller writes, and arguments[0] is it,
@@ -273,17 +297,18 @@ LhatValue signal_emit(LhatMachine *machine, void *context,
         passed.push_back(to_variant(arguments[i], emitter->module));
     }
     object->callv("emit_signal", passed);
-    return lhat_nil();
+    return;
 }
 
 // 05 の 8.8: registering this is what makes the box the host's to hand over
 // and L^'s to give back.
-LhatValue godot_dispose(LhatMachine *machine, void *context,
-                        const LhatValue *arguments, size_t count)
+void godot_dispose(LhatMachine *machine, void *context,
+                        const LhatValue *arguments, size_t count,
+                        LhatValue *answers, int *answer_count)
 {
     (void)machine;
     if (count == 0) {
-        return lhat_nil();
+        return;
     }
     Handle *handle =
         (Handle *)lhat_hostdata_pointer(arguments[0],
@@ -291,20 +316,23 @@ LhatValue godot_dispose(LhatMachine *machine, void *context,
     if (handle != nullptr) {
         memdelete(handle);
     }
-    return lhat_nil();
+    return;
 }
 
 // True in the editor and false in a game, including one launched from it.
 // What a @tool class asks when it wants to do one thing while a scene is
 // being edited and another while it is played.
-LhatValue godot_is_editor_hint(LhatMachine *machine, void *context,
-                               const LhatValue *arguments, size_t count)
+void godot_is_editor_hint(LhatMachine *machine, void *context,
+                               const LhatValue *arguments, size_t count,
+                               LhatValue *answers, int *answer_count)
 {
     (void)machine;
     (void)context;
     (void)arguments;
     (void)count;
-    return lhat_bool(Engine::get_singleton()->is_editor_hint());
+    answers[0] = lhat_bool(Engine::get_singleton()->is_editor_hint());
+    *answer_count = 1;
+    return;
 }
 
 
@@ -559,8 +587,9 @@ LhatValue answered(LhatMachine *machine, const BoundMethod *method,
 // already holds (8.9).
 //
 // 14.4 hands the receiver first, which is what the signature's self^ says.
-LhatValue bound_call(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count)
+void bound_call(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
 {
     const BoundMethod *method = (const BoundMethod *)context;
     const Godot *module = method->module;
@@ -575,8 +604,10 @@ LhatValue bound_call(LhatMachine *machine, void *context,
     if (owner == nullptr) {
         // A singleton the engine does not hold on this build -- a server that
         // is not compiled in -- reads as absent rather than as a crash.
-        return gone(method->name,
+        answers[0] = gone(method->name,
                     (!alone && count > 0) ? arguments[0] : lhat_nil(), module);
+        *answer_count = 1;
+        return;
     }
     // An engine that no longer answers to this hash, and an answer no ptrcall
     // shape covers. Neither happens to a table generated against the
@@ -593,15 +624,19 @@ LhatValue bound_call(LhatMachine *machine, void *context,
                         internal::get_object_instance_binding(owner))
                   : object_of(arguments[0], module);
         if (object == nullptr) {
-            return gone(method->name, alone ? lhat_nil() : arguments[0],
+            answers[0] = gone(method->name, alone ? lhat_nil() : arguments[0],
                         module);
+            *answer_count = 1;
+            return;
         }
-        return by_name(machine, method, object, arguments, first, count);
+        answers[0] = by_name(machine, method, object, arguments, first, count);
+        *answer_count = 1;
+        return;
     }
 
     size_t wanted = method->arg_count;
     if (count < wanted + first || wanted > LHAT_GD_MAX_ARGS) {
-        return lhat_nil();  // 5.1: a wrong call stops rather than corrupts
+        return;  // 5.1: a wrong call stops rather than corrupts
     }
 
     GDExtensionConstTypePtr slots[LHAT_GD_MAX_ARGS];
@@ -612,14 +647,18 @@ LhatValue bound_call(LhatMachine *machine, void *context,
     if (method->boxed != 0) {
         Boxed room;
         if (!laid_out(method, arguments, first, wanted, slots, held, &room)) {
-            return lhat_nil();
+            return;
         }
-        return answered(machine, method, owner, slots);
+        answers[0] = answered(machine, method, owner, slots);
+        *answer_count = 1;
+        return;
     }
     if (!laid_out(method, arguments, first, wanted, slots, held, nullptr)) {
-        return lhat_nil();
+        return;
     }
-    return answered(machine, method, owner, slots);
+    answers[0] = answered(machine, method, owner, slots);
+    *answer_count = 1;
+    return;
 }
 
 const Godot *register_godot(LhatProgram *program)

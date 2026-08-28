@@ -167,8 +167,9 @@ struct BoundMethod {
 // bind is NULL -- an engine that no longer answers to this hash -- it falls
 // back to the call by name, so a version skew costs speed rather than the
 // run.
-LhatValue bound_call(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count);
+void bound_call(LhatMachine *machine, void *context,
+                const LhatValue *arguments, size_t count, LhatValue *answers,
+                int *answer_count);
 
 // Registers the module into `program`, before any checking (05 の 8.7).
 // NULL when there was no memory or a name was taken.

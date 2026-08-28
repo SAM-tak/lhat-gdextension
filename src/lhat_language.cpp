@@ -453,13 +453,11 @@ const char *const node_template =
     "_TS__TS_# written there is what says which engine class this may be\n"
     "_TS__TS_# put on; delegate^ below shows that class's members here.\n"
     "_TS__TS_abstract^gdobj : godot._BASE_,\n"
-    "\n"
-    "_TS__TS_@export speed = 1,\n"
+    "_TS__TS_# Add your own properties.\n"
+    "_TS__TS_# @export speed = 1, \n"
     "_TS_},\n"
     "\n"
-    "_TS_override^new = f^obj:godot._BASE_ {\n"
-    "_TS__TS_self^{ gdobj = obj }\n"
-    "_TS_},\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
     "\n"
     "_TS_delegate^self^.gdobj,\n"
     "\n"
@@ -489,9 +487,7 @@ const char *const resource_template =
     "_TS__TS_@export name = \"\",\n"
     "_TS_},\n"
     "\n"
-    "_TS_override^new = f^obj:godot._BASE_ {\n"
-    "_TS__TS_self^{ gdobj = obj }\n"
-    "_TS_},\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
     "\n"
     "_TS_delegate^self^.gdobj,\n"
     "}\n";
@@ -502,8 +498,8 @@ const char *const module_template =
     "# Nothing wears this one: require^ is what reaches it, and only the\n"
     "# public^ names are answered (05 の 5.5).\n"
     "\n"
-    "public^let^greet = f^name:string^ -> string^ {\n"
-    "_TS_return^ $\"hello, {name}\"\n"
+    "public^let^greet = f^name:string^ {\n"
+    "_TS_return^$\"hello, {name}\"\n"
     "}\n";
 
 const char *const editor_script_template =

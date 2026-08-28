@@ -185,20 +185,24 @@ P *held_packed(LhatValue value, const Godot *module)
 }
 
 template <typename P>
-LhatValue packed_size(LhatMachine *machine, void *context,
-                      const LhatValue *arguments, size_t count)
+void packed_size(LhatMachine *machine, void *context,
+                      const LhatValue *arguments, size_t count,
+                      LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const P *held = count > 0 ? held_packed<P>(arguments[0], module_of(context))
                               : nullptr;
-    return lhat_integer(held != nullptr ? held->size() : 0);
+    answers[0] = lhat_integer(held != nullptr ? held->size() : 0);
+    *answer_count = 1;
+    return;
 }
 
 // 04 の 11.3: an index that is not there answers nothing rather than
 // stopping -- the same reading a table gives one.
 template <typename P>
-LhatValue packed_at(LhatMachine *machine, void *context,
-                    const LhatValue *arguments, size_t count)
+void packed_at(LhatMachine *machine, void *context,
+                    const LhatValue *arguments, size_t count,
+                    LhatValue *answers, int *answer_count)
 {
     using E = typename Packed<P>::Element;
     const Godot *module = module_of(context);
@@ -207,15 +211,20 @@ LhatValue packed_at(LhatMachine *machine, void *context,
                      ? lhat_as_integer(arguments[1])
                      : 0;
     if (held == nullptr || at < 1 || at > held->size()) {
-        return element_out<E>(machine, module, E());
+        answers[0] = element_out<E>(machine, module, E());
+        *answer_count = 1;
+        return;
     }
     // 02 の 14: a sequence is written from 1, so that is what is read here.
-    return element_out<E>(machine, module, (*held)[at - 1]);
+    answers[0] = element_out<E>(machine, module, (*held)[at - 1]);
+    *answer_count = 1;
+    return;
 }
 
 template <typename P>
-LhatValue packed_set(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count)
+void packed_set(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
 {
     using E = typename Packed<P>::Element;
     (void)machine;
@@ -227,15 +236,16 @@ LhatValue packed_set(LhatMachine *machine, void *context,
                      : 0;
     if (held == nullptr || count < 3 || !element_in<E>(arguments[2], module, &value) ||
         at < 1 || at > held->size()) {
-        return lhat_nil();
+        return;
     }
     held->set(at - 1, value);
-    return lhat_nil();
+    return;
 }
 
 template <typename P>
-LhatValue packed_append(LhatMachine *machine, void *context,
-                        const LhatValue *arguments, size_t count)
+void packed_append(LhatMachine *machine, void *context,
+                        const LhatValue *arguments, size_t count,
+                        LhatValue *answers, int *answer_count)
 {
     using E = typename Packed<P>::Element;
     (void)machine;
@@ -244,15 +254,16 @@ LhatValue packed_append(LhatMachine *machine, void *context,
     E value;
     if (held == nullptr || count < 2 ||
         !element_in<E>(arguments[1], module, &value)) {
-        return lhat_nil();
+        return;
     }
     held->push_back(value);
-    return lhat_nil();
+    return;
 }
 
 template <typename P>
-LhatValue packed_clear(LhatMachine *machine, void *context,
-                       const LhatValue *arguments, size_t count)
+void packed_clear(LhatMachine *machine, void *context,
+                       const LhatValue *arguments, size_t count,
+                       LhatValue *answers, int *answer_count)
 {
     (void)machine;
     P *held = count > 0 ? held_packed<P>(arguments[0], module_of(context))
@@ -260,12 +271,13 @@ LhatValue packed_clear(LhatMachine *machine, void *context,
     if (held != nullptr) {
         held->clear();
     }
-    return lhat_nil();
+    return;
 }
 
 template <typename P>
-LhatValue packed_dispose(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void packed_dispose(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     (void)machine;
     P *held = count > 0 ? held_packed<P>(arguments[0], module_of(context))
@@ -273,7 +285,7 @@ LhatValue packed_dispose(LhatMachine *machine, void *context,
     if (held != nullptr) {
         memdelete(held);
     }
-    return lhat_nil();
+    return;
 }
 
 // 02 の 16.3 with 05 の 8.8: the walk `for^ x in^ a` runs. One walk of one
@@ -290,20 +302,24 @@ struct PackedWalk {
 };
 
 template <typename P>
-bool packed_step(LhatMachine *machine, void *context, LhatValue sent,
-                 LhatValue *out)
+bool packed_step(LhatMachine *machine, void *context, const LhatValue *sent,
+                 size_t sent_count, LhatValue *answers, int *answer_count)
 {
     using E = typename Packed<P>::Element;
     (void)sent;  // the loops send nothing in
+    (void)sent_count;
     PackedWalk<P> *walk = (PackedWalk<P> *)context;
     const P *held = held_packed<P>(walk->over, walk->module);
     if (held == nullptr || walk->at > held->size()) {
+        // 13.9's third slot: a walk that ends with nothing, which is what
+        // every one of these does.
         return false;
     }
     // The four value-element arrays answer 8.9's pointer form here, and the
     // machine writes it out whole into the focus -- the same crossing a
     // host call's answer makes.
-    *out = element_out<E>(machine, walk->module, (*held)[walk->at - 1]);
+    answers[0] = element_out<E>(machine, walk->module, (*held)[walk->at - 1]);
+    *answer_count = 1;
     walk->at++;
     return true;
 }
@@ -311,25 +327,27 @@ bool packed_step(LhatMachine *machine, void *context, LhatValue sent,
 // Under the dispose^ contract: once, and never reaching into the L^ API --
 // the sweep may be the caller.
 template <typename P>
-LhatValue packed_walk_release(LhatMachine *machine, void *context,
-                              const LhatValue *arguments, size_t count)
+void packed_walk_release(LhatMachine *machine, void *context,
+                              const LhatValue *arguments, size_t count,
+                              LhatValue *answers, int *answer_count)
 {
     (void)machine;
     (void)arguments;
     (void)count;
     memdelete((PackedWalk<P> *)context);
-    return lhat_nil();
+    return;
 }
 
 template <typename P>
-LhatValue packed_iterate(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void packed_iterate(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     const P *held =
         count > 0 ? held_packed<P>(arguments[0], module) : nullptr;
     if (held == nullptr) {
-        return lhat_nil();
+        return;
     }
     PackedWalk<P> *walk = memnew(PackedWalk<P>);
     walk->module = module;
@@ -340,9 +358,11 @@ LhatValue packed_iterate(LhatMachine *machine, void *context,
                                      packed_walk_release<P>, arguments[0],
                                      &out)) {
         memdelete(walk);
-        return lhat_nil();
+        return;
     }
-    return out;
+    answers[0] = out;
+    *answer_count = 1;
+    return;
 }
 
 template <typename P>
@@ -361,14 +381,17 @@ bool answer_packed(LhatMachine *machine, const Godot *module, const P &from,
 // f^ -> godot.Packed*Array: an empty one, which is the only one there is to
 // make. What the engine already holds arrives through get() instead.
 template <typename P>
-LhatValue make_packed_of(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count)
+void make_packed_of(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     (void)arguments;
     (void)count;
     const Godot *module = module_of(context);
     LhatValue out = lhat_nil();
-    return answer_packed(machine, module, P(), &out) ? out : lhat_nil();
+    answers[0] = answer_packed(machine, module, P(), &out) ? out : lhat_nil();
+    *answer_count = 1;
+    return;
 }
 
 template <typename P>

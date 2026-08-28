@@ -1,0 +1,27 @@
+module^demo.shape3dtest
+
+import^godot
+
+@game
+public^let^Shape3Dtest = def^{
+	self^{
+		# The node this is worn by. new takes one, and the type
+		# written there is what says which engine class this may be
+		# put on; delegate^ below shows that class's members here.
+		abstract^gdobj : godot.CollisionShape3D,
+		# Add your own properties.
+		@export speed = 1, 
+	},
+
+	override^new = f^obj { self^{ gdobj = obj } },
+
+	delegate^self^.gdobj,
+
+	# Once, when the node enters the tree.
+	_ready = p^self^{
+	},
+
+	# Every frame. `delta` is how long the last one took, in seconds.
+	_process = p^self^, delta:number^{
+	},
+}

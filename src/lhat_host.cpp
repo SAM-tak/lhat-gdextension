@@ -52,8 +52,9 @@ char *load_unit(void *context, const char *path, size_t *length)
 // 05 の 8.2: the host decides what a program sees without a require^. print
 // goes to the Output panel, which is the one thing a script writer will look
 // for first.
-LhatValue host_print(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count)
+void host_print(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
 {
     (void)machine;
     (void)context;
@@ -65,7 +66,7 @@ LhatValue host_print(LhatMachine *machine, void *context,
         line += text_of(arguments[i]);
     }
     UtilityFunctions::print(line);
-    return lhat_nil();
+    return;
 }
 
 }  // namespace
