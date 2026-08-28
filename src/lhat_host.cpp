@@ -53,8 +53,8 @@ char *load_unit(void *context, const char *path, size_t *length)
 // goes to the Output panel, which is the one thing a script writer will look
 // for first.
 void host_print(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count,
-                     LhatValue *answers, int *answer_count)
+                const LhatValue *arguments, size_t count,
+                LhatValue *answers, int *answer_count)
 {
     (void)machine;
     (void)context;

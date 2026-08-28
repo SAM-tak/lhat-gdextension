@@ -186,8 +186,8 @@ P *held_packed(LhatValue value, const Godot *module)
 
 template <typename P>
 void packed_size(LhatMachine *machine, void *context,
-                      const LhatValue *arguments, size_t count,
-                      LhatValue *answers, int *answer_count)
+                 const LhatValue *arguments, size_t count,
+                 LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const P *held = count > 0 ? held_packed<P>(arguments[0], module_of(context))
@@ -201,8 +201,8 @@ void packed_size(LhatMachine *machine, void *context,
 // stopping -- the same reading a table gives one.
 template <typename P>
 void packed_at(LhatMachine *machine, void *context,
-                    const LhatValue *arguments, size_t count,
-                    LhatValue *answers, int *answer_count)
+               const LhatValue *arguments, size_t count,
+               LhatValue *answers, int *answer_count)
 {
     using E = typename Packed<P>::Element;
     const Godot *module = module_of(context);
@@ -223,8 +223,8 @@ void packed_at(LhatMachine *machine, void *context,
 
 template <typename P>
 void packed_set(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count,
-                     LhatValue *answers, int *answer_count)
+                const LhatValue *arguments, size_t count,
+                LhatValue *answers, int *answer_count)
 {
     using E = typename Packed<P>::Element;
     (void)machine;
@@ -244,8 +244,8 @@ void packed_set(LhatMachine *machine, void *context,
 
 template <typename P>
 void packed_append(LhatMachine *machine, void *context,
-                        const LhatValue *arguments, size_t count,
-                        LhatValue *answers, int *answer_count)
+                   const LhatValue *arguments, size_t count,
+                   LhatValue *answers, int *answer_count)
 {
     using E = typename Packed<P>::Element;
     (void)machine;
@@ -262,8 +262,8 @@ void packed_append(LhatMachine *machine, void *context,
 
 template <typename P>
 void packed_clear(LhatMachine *machine, void *context,
-                       const LhatValue *arguments, size_t count,
-                       LhatValue *answers, int *answer_count)
+                  const LhatValue *arguments, size_t count,
+                  LhatValue *answers, int *answer_count)
 {
     (void)machine;
     P *held = count > 0 ? held_packed<P>(arguments[0], module_of(context))
@@ -276,8 +276,8 @@ void packed_clear(LhatMachine *machine, void *context,
 
 template <typename P>
 void packed_dispose(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count,
-                         LhatValue *answers, int *answer_count)
+                    const LhatValue *arguments, size_t count,
+                    LhatValue *answers, int *answer_count)
 {
     (void)machine;
     P *held = count > 0 ? held_packed<P>(arguments[0], module_of(context))
@@ -328,8 +328,8 @@ bool packed_step(LhatMachine *machine, void *context, const LhatValue *sent,
 // the sweep may be the caller.
 template <typename P>
 void packed_walk_release(LhatMachine *machine, void *context,
-                              const LhatValue *arguments, size_t count,
-                              LhatValue *answers, int *answer_count)
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
 {
     (void)machine;
     (void)arguments;
@@ -340,8 +340,8 @@ void packed_walk_release(LhatMachine *machine, void *context,
 
 template <typename P>
 void packed_iterate(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count,
-                         LhatValue *answers, int *answer_count)
+                    const LhatValue *arguments, size_t count,
+                    LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     const P *held =
@@ -382,8 +382,8 @@ bool answer_packed(LhatMachine *machine, const Godot *module, const P &from,
 // make. What the engine already holds arrives through get() instead.
 template <typename P>
 void make_packed_of(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count,
-                         LhatValue *answers, int *answer_count)
+                    const LhatValue *arguments, size_t count,
+                    LhatValue *answers, int *answer_count)
 {
     (void)arguments;
     (void)count;

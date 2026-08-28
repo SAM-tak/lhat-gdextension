@@ -275,8 +275,8 @@ Object *engine_object_of(LhatMachine *machine, LhatValue self,
 // godot_emit takes, with the name coming from the registration rather than
 // from an argument -- which is the whole of what writing the body did.
 void signal_emit(LhatMachine *machine, void *context,
-                      const LhatValue *arguments, size_t count,
-                      LhatValue *answers, int *answer_count)
+                 const LhatValue *arguments, size_t count,
+                 LhatValue *answers, int *answer_count)
 {
     const SignalEmitter *emitter = (const SignalEmitter *)context;
     if (emitter == nullptr || count == 0) {
@@ -303,8 +303,8 @@ void signal_emit(LhatMachine *machine, void *context,
 // 05 の 8.8: registering this is what makes the box the host's to hand over
 // and L^'s to give back.
 void godot_dispose(LhatMachine *machine, void *context,
-                        const LhatValue *arguments, size_t count,
-                        LhatValue *answers, int *answer_count)
+                   const LhatValue *arguments, size_t count,
+                   LhatValue *answers, int *answer_count)
 {
     (void)machine;
     if (count == 0) {
@@ -323,8 +323,8 @@ void godot_dispose(LhatMachine *machine, void *context,
 // What a @tool class asks when it wants to do one thing while a scene is
 // being edited and another while it is played.
 void godot_is_editor_hint(LhatMachine *machine, void *context,
-                               const LhatValue *arguments, size_t count,
-                               LhatValue *answers, int *answer_count)
+                          const LhatValue *arguments, size_t count,
+                          LhatValue *answers, int *answer_count)
 {
     (void)machine;
     (void)context;
@@ -588,8 +588,8 @@ LhatValue answered(LhatMachine *machine, const BoundMethod *method,
 //
 // 14.4 hands the receiver first, which is what the signature's self^ says.
 void bound_call(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count,
-                     LhatValue *answers, int *answer_count)
+                const LhatValue *arguments, size_t count,
+                LhatValue *answers, int *answer_count)
 {
     const BoundMethod *method = (const BoundMethod *)context;
     const Godot *module = method->module;

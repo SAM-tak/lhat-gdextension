@@ -182,8 +182,8 @@ struct Div {
 // f^self^, T -> T
 template <typename T, typename Op>
 void paired(LhatMachine *machine, void *context,
-                 const LhatValue *arguments, size_t count,
-                 LhatValue *answers, int *answer_count)
+            const LhatValue *arguments, size_t count,
+            LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T left;
@@ -200,8 +200,8 @@ void paired(LhatMachine *machine, void *context,
 // f^self^, number^ -> T
 template <typename T, typename Op, typename C>
 void scaled(LhatMachine *machine, void *context,
-                 const LhatValue *arguments, size_t count,
-                 LhatValue *answers, int *answer_count)
+            const LhatValue *arguments, size_t count,
+            LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T left;
@@ -218,8 +218,8 @@ void scaled(LhatMachine *machine, void *context,
 // a built-in number^ on the left carries no answer for a host value.
 template <typename T, typename Op, typename C>
 void scaled_last(LhatMachine *machine, void *context,
-                      const LhatValue *arguments, size_t count,
-                      LhatValue *answers, int *answer_count)
+                 const LhatValue *arguments, size_t count,
+                 LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T right;
@@ -235,8 +235,8 @@ void scaled_last(LhatMachine *machine, void *context,
 // f^self^ -> T
 template <typename T>
 void negated(LhatMachine *machine, void *context,
-                  const LhatValue *arguments, size_t count,
-                  LhatValue *answers, int *answer_count)
+             const LhatValue *arguments, size_t count,
+             LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T held;
@@ -251,8 +251,8 @@ void negated(LhatMachine *machine, void *context,
 // 02 の 14.17: what a value says when it is written out.
 template <typename T>
 void as_text(LhatMachine *machine, void *context,
-                  const LhatValue *arguments, size_t count,
-                  LhatValue *answers, int *answer_count)
+             const LhatValue *arguments, size_t count,
+             LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T held;
@@ -274,8 +274,8 @@ void as_text(LhatMachine *machine, void *context,
 
 template <typename T, typename C>
 void make_xy(LhatMachine *machine, void *context,
-                  const LhatValue *arguments, size_t count,
-                  LhatValue *answers, int *answer_count)
+             const LhatValue *arguments, size_t count,
+             LhatValue *answers, int *answer_count)
 {
     if (count < 2) {
         return;
@@ -290,8 +290,8 @@ void make_xy(LhatMachine *machine, void *context,
 
 template <typename T, typename C>
 void make_xyz(LhatMachine *machine, void *context,
-                   const LhatValue *arguments, size_t count,
-                   LhatValue *answers, int *answer_count)
+              const LhatValue *arguments, size_t count,
+              LhatValue *answers, int *answer_count)
 {
     if (count < 3) {
         return;
@@ -307,8 +307,8 @@ void make_xyz(LhatMachine *machine, void *context,
 
 template <typename T, typename C>
 void make_xyzw(LhatMachine *machine, void *context,
-                    const LhatValue *arguments, size_t count,
-                    LhatValue *answers, int *answer_count)
+               const LhatValue *arguments, size_t count,
+               LhatValue *answers, int *answer_count)
 {
     if (count < 4) {
         return;
@@ -327,8 +327,8 @@ void make_xyzw(LhatMachine *machine, void *context,
 // 8.9 with 8.8: what a RID names lives in a server and is reached by handing
 // the RID back, so there is nothing here to read but the number itself.
 void rid_id(LhatMachine *machine, void *context,
-                 const LhatValue *arguments, size_t count,
-                 LhatValue *answers, int *answer_count)
+            const LhatValue *arguments, size_t count,
+            LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
@@ -344,8 +344,8 @@ void rid_id(LhatMachine *machine, void *context,
 }
 
 void make_color(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count,
-                     LhatValue *answers, int *answer_count)
+                const LhatValue *arguments, size_t count,
+                LhatValue *answers, int *answer_count)
 {
     if (count < 4) {
         return;
@@ -377,8 +377,8 @@ struct Xform {
 // f^self^, U -> R, where R is whatever the operation answers.
 template <typename T, typename U, typename Op>
 void mixed(LhatMachine *machine, void *context,
-                const LhatValue *arguments, size_t count,
-                LhatValue *answers, int *answer_count)
+           const LhatValue *arguments, size_t count,
+           LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T left;
@@ -398,8 +398,8 @@ void mixed(LhatMachine *machine, void *context,
 // changed by making another, which is what a value type means.
 template <typename T, typename R, R (*Get)(const T &)>
 void reads(LhatMachine *machine, void *context,
-                const LhatValue *arguments, size_t count,
-                LhatValue *answers, int *answer_count)
+           const LhatValue *arguments, size_t count,
+           LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T held;
@@ -435,8 +435,8 @@ Vector4 proj_w(const Projection &p) { return p.columns[3]; }
 // the flat ones took numbers.
 template <typename T, typename P>
 void make_pair(LhatMachine *machine, void *context,
-                    const LhatValue *arguments, size_t count,
-                    LhatValue *answers, int *answer_count)
+               const LhatValue *arguments, size_t count,
+               LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     P first;
@@ -452,8 +452,8 @@ void make_pair(LhatMachine *machine, void *context,
 
 template <typename T, typename P>
 void make_triple(LhatMachine *machine, void *context,
-                      const LhatValue *arguments, size_t count,
-                      LhatValue *answers, int *answer_count)
+                 const LhatValue *arguments, size_t count,
+                 LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     P first;
@@ -470,8 +470,8 @@ void make_triple(LhatMachine *machine, void *context,
 }
 
 void make_plane(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count,
-                     LhatValue *answers, int *answer_count)
+                const LhatValue *arguments, size_t count,
+                LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     Vector3 normal;
@@ -485,8 +485,8 @@ void make_plane(LhatMachine *machine, void *context,
 }
 
 void make_transform3d(LhatMachine *machine, void *context,
-                           const LhatValue *arguments, size_t count,
-                           LhatValue *answers, int *answer_count)
+                      const LhatValue *arguments, size_t count,
+                      LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     Basis basis;
@@ -501,8 +501,8 @@ void make_transform3d(LhatMachine *machine, void *context,
 }
 
 void make_projection(LhatMachine *machine, void *context,
-                          const LhatValue *arguments, size_t count,
-                          LhatValue *answers, int *answer_count)
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     Vector4 columns[4];
@@ -530,8 +530,8 @@ void make_projection(LhatMachine *machine, void *context,
 // f^self^ -> number^
 template <typename T, double (*Get)(const T &)>
 void measures(LhatMachine *machine, void *context,
-                   const LhatValue *arguments, size_t count,
-                   LhatValue *answers, int *answer_count)
+              const LhatValue *arguments, size_t count,
+              LhatValue *answers, int *answer_count)
 {
     (void)machine;
     T held;
@@ -548,8 +548,8 @@ void measures(LhatMachine *machine, void *context,
 // f^self^, T -> number^
 template <typename T, double (*Get)(const T &, const T &)>
 void measures_same(LhatMachine *machine, void *context,
-                        const LhatValue *arguments, size_t count,
-                        LhatValue *answers, int *answer_count)
+                   const LhatValue *arguments, size_t count,
+                   LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
@@ -569,8 +569,8 @@ void measures_same(LhatMachine *machine, void *context,
 // f^self^, U -> number^
 template <typename T, typename U, double (*Get)(const T &, const U &)>
 void measures_other(LhatMachine *machine, void *context,
-                         const LhatValue *arguments, size_t count,
-                         LhatValue *answers, int *answer_count)
+                    const LhatValue *arguments, size_t count,
+                    LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
@@ -590,8 +590,8 @@ void measures_other(LhatMachine *machine, void *context,
 // f^self^, U -> bool^
 template <typename T, typename U, bool (*Get)(const T &, const U &)>
 void asks_other(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count,
-                     LhatValue *answers, int *answer_count)
+                const LhatValue *arguments, size_t count,
+                LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
@@ -611,8 +611,8 @@ void asks_other(LhatMachine *machine, void *context,
 // f^self^, number^ -> T
 template <typename T, T (*Get)(const T &, double)>
 void turned(LhatMachine *machine, void *context,
-                 const LhatValue *arguments, size_t count,
-                 LhatValue *answers, int *answer_count)
+            const LhatValue *arguments, size_t count,
+            LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T held;
@@ -627,8 +627,8 @@ void turned(LhatMachine *machine, void *context,
 // f^self^, T, number^ -> T
 template <typename T, T (*Get)(const T &, const T &, double)>
 void blended(LhatMachine *machine, void *context,
-                  const LhatValue *arguments, size_t count,
-                  LhatValue *answers, int *answer_count)
+             const LhatValue *arguments, size_t count,
+             LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T left;
@@ -646,8 +646,8 @@ void blended(LhatMachine *machine, void *context,
 // f^self^, T -> T, named rather than spelled as an operator.
 template <typename T, T (*Get)(const T &, const T &)>
 void joined(LhatMachine *machine, void *context,
-                 const LhatValue *arguments, size_t count,
-                 LhatValue *answers, int *answer_count)
+            const LhatValue *arguments, size_t count,
+            LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T left;
@@ -664,8 +664,8 @@ void joined(LhatMachine *machine, void *context,
 // f^self^, U -> U
 template <typename T, typename U, U (*Get)(const T &, const U &)>
 void applied(LhatMachine *machine, void *context,
-                  const LhatValue *arguments, size_t count,
-                  LhatValue *answers, int *answer_count)
+             const LhatValue *arguments, size_t count,
+             LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     T left;
@@ -896,8 +896,8 @@ bool name_of(LhatValue value, String *out)
 // f^self^, string^ -> T
 template <typename T>
 void object_get(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count,
-                     LhatValue *answers, int *answer_count)
+                const LhatValue *arguments, size_t count,
+                LhatValue *answers, int *answer_count)
 {
     const Godot *module = module_of(context);
     String named;
@@ -920,8 +920,8 @@ void object_get(LhatMachine *machine, void *context,
 // p^self^, string^, T
 template <typename T>
 void object_set(LhatMachine *machine, void *context,
-                     const LhatValue *arguments, size_t count,
-                     LhatValue *answers, int *answer_count)
+                const LhatValue *arguments, size_t count,
+                LhatValue *answers, int *answer_count)
 {
     (void)machine;
     const Godot *module = module_of(context);
