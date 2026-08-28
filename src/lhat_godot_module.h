@@ -139,6 +139,13 @@ struct BoundMethod {
     const char *name;       // the engine's own spelling, "add_child"
     const char *signature;  // 13 章's grammar, the receiver written self^
     const char *class_name;
+    // Where a singleton's method is registered ("godot.Input"), and NULL for
+    // a method of a class. A singleton is a class the engine holds one
+    // instance of, and a script never has that instance in hand -- GDScript
+    // writes `Input.is_action_pressed(…)` against the name alone. So these
+    // are functions of a module rather than members of a type, the receiver
+    // is not written, and `owner` below is where it comes from instead.
+    const char *module_path;
     uint32_t hash;
     uint8_t answer;    // one of the kinds above
     uint8_t arg_count;
@@ -148,13 +155,18 @@ struct BoundMethod {
     const uint8_t *arguments;  // arg_count kinds, the receiver not among them
     const Godot *module;
     GDExtensionMethodBindPtr bind;  // NULL where the engine refused the hash
+    // The singleton this is called against, found once at registration.
+    // NULL for everything else, which takes its receiver from the call.
+    GodotObject *owner;
 };
 
 // What every entry of that table is registered with: reads `context` as the
 // BoundMethod and ptrcalls what it names. 14.4 hands it the receiver first,
-// which is what the signature's self^ says. Where the bind is NULL -- an
-// engine that no longer answers to this hash -- it falls back to the call by
-// name, so a version skew costs speed rather than the run.
+// which is what the signature's self^ says -- or does not, where the method
+// is a singleton's and the receiver is the one the engine holds. Where the
+// bind is NULL -- an engine that no longer answers to this hash -- it falls
+// back to the call by name, so a version skew costs speed rather than the
+// run.
 LhatValue bound_call(LhatMachine *machine, void *context,
                      const LhatValue *arguments, size_t count);
 

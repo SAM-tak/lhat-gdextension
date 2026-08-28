@@ -124,11 +124,12 @@ LhatValue gone(const char *what, LhatValue self, const Godot *module)
 // refused and on an answer no ptrcall shape covers -- a version skew costs
 // speed rather than the run.
 LhatValue by_name(LhatMachine *machine, const BoundMethod *method,
-                  Object *object, const LhatValue *arguments, size_t count)
+                  Object *object, const LhatValue *arguments, size_t first,
+                  size_t count)
 {
     const Godot *module = method->module;
     Array passed;
-    for (size_t i = 1; i < count; i++) {
+    for (size_t i = first; i < count; i++) {
         passed.push_back(to_variant(arguments[i], module));
     }
     LhatValue made = lhat_nil();
@@ -364,17 +365,19 @@ union Held {
 };
 
 // Every argument but the receiver, laid out where a ptrcall can read it.
+// `first` is where the arguments proper begin: one for a method, since 14.4
+// puts the receiver before them, and zero for a singleton's, which has none.
 // `room` is NULL exactly where `method->boxed` is zero. False on a value that
 // is not what the signature said -- 5.1: a wrong call stops rather than
 // corrupts.
 bool laid_out(const BoundMethod *method, const LhatValue *arguments,
-              size_t wanted, GDExtensionConstTypePtr *slots, Held *held,
-              Boxed *room)
+              size_t first, size_t wanted, GDExtensionConstTypePtr *slots,
+              Held *held, Boxed *room)
 {
     const Godot *module = method->module;
     size_t built = 0;
     for (size_t i = 0; i < wanted; i++) {
-        LhatValue given = arguments[i + 1];
+        LhatValue given = arguments[i + first];
         uint8_t kind = method->arguments[i];
         if (kind >= LHAT_GD_HOSTDATA) {
             // 8.8: the handle holds the engine's own object, so the pointer
@@ -561,10 +564,19 @@ LhatValue bound_call(LhatMachine *machine, void *context,
 {
     const BoundMethod *method = (const BoundMethod *)context;
     const Godot *module = method->module;
-    GodotObject *owner = count > 0 ? owner_of(arguments[0], module) : nullptr;
+
+    // A singleton's method is written without a receiver, so the arguments
+    // start where a method's receiver would have been.
+    const bool alone = method->module_path != nullptr;
+    const size_t first = alone ? 0 : 1;
+    GodotObject *owner =
+        alone ? method->owner
+              : (count > 0 ? owner_of(arguments[0], module) : nullptr);
     if (owner == nullptr) {
-        return gone(method->name, count > 0 ? arguments[0] : lhat_nil(),
-                    module);
+        // A singleton the engine does not hold on this build -- a server that
+        // is not compiled in -- reads as absent rather than as a crash.
+        return gone(method->name,
+                    (!alone && count > 0) ? arguments[0] : lhat_nil(), module);
     }
     // An engine that no longer answers to this hash, and an answer no ptrcall
     // shape covers. Neither happens to a table generated against the
@@ -574,15 +586,21 @@ LhatValue bound_call(LhatMachine *machine, void *context,
     // Only this road wants something with methods on it, so only this road
     // pays for the instance binding.
     if (method->bind == nullptr || method->answer >= LHAT_GD_HOSTDATA) {
-        Object *object = object_of(arguments[0], module);
+        // This road wants something with methods on it, so this is the one
+        // place that pays for godot-cpp's instance binding.
+        Object *object =
+            alone ? reinterpret_cast<Object *>(
+                        internal::get_object_instance_binding(owner))
+                  : object_of(arguments[0], module);
         if (object == nullptr) {
-            return gone(method->name, arguments[0], module);
+            return gone(method->name, alone ? lhat_nil() : arguments[0],
+                        module);
         }
-        return by_name(machine, method, object, arguments, count);
+        return by_name(machine, method, object, arguments, first, count);
     }
 
     size_t wanted = method->arg_count;
-    if (count < wanted + 1 || wanted > LHAT_GD_MAX_ARGS) {
+    if (count < wanted + first || wanted > LHAT_GD_MAX_ARGS) {
         return lhat_nil();  // 5.1: a wrong call stops rather than corrupts
     }
 
@@ -593,12 +611,12 @@ LhatValue bound_call(LhatMachine *machine, void *context,
     // down no Boxed at all, which is what five methods in six do.
     if (method->boxed != 0) {
         Boxed room;
-        if (!laid_out(method, arguments, wanted, slots, held, &room)) {
+        if (!laid_out(method, arguments, first, wanted, slots, held, &room)) {
             return lhat_nil();
         }
         return answered(machine, method, owner, slots);
     }
-    if (!laid_out(method, arguments, wanted, slots, held, nullptr)) {
+    if (!laid_out(method, arguments, first, wanted, slots, held, nullptr)) {
         return lhat_nil();
     }
     return answered(machine, method, owner, slots);

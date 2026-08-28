@@ -145,15 +145,20 @@ def offerable(name, classes):
 
 
 # 03 の 5.2: a register is one byte and LHAT_MAX_REGISTERS is 250, so a unit
-# holds fewer than that many bindings. The whole Node tree is 251, so the
-# wrappers are written one file per line of godot-classes.txt -- a line names
-# a branch and the file is that branch. Nothing composes between wrappers
-# (each holds its own class's handle), so where a wrapper lives is free.
-MAX_PER_UNIT = 240
+# holds only so many bindings -- fewer than 250, since compiling each def^
+# wants registers of its own on the way. Measured with units of nothing but
+# wrappers: 180 loads and 200 does not. So the wrappers are written one file
+# per line of godot-classes.txt -- a line names a branch and the file is that
+# branch. Nothing composes between wrappers (each holds its own class's
+# handle), so where a wrapper lives is free.
+MAX_PER_UNIT = 180
 
 
-def selected(classes):
-    """[(group name, [class, ...]), ...], in the order the list names them.
+def selected(classes, api):
+    """(groups, singletons) -- see below.
+
+    groups is [(group name, [class, ...]), ...], in the order the list names
+    them.
 
     A group carries the whole ancestry of what it names, so each file stands
     on its own: reading lhat/Godot/Node3D.lh is enough to write a Node3D or
@@ -166,12 +171,31 @@ def selected(classes):
     `under Node` written last is the Nodes no branch above it covered.
     """
     groups = []
+    singletons = []
     covered = set()
+    # 05 の 8.7: a singleton is a class the engine holds one instance of, and
+    # a script never has that instance -- GDScript writes the class name and
+    # calls through it. So these are not part of the class tree at all: they
+    # become functions of a module of their own.
+    every_singleton = [s["name"] for s in api.get("singletons", [])
+                       if classes[s["name"]]["api_type"] == "core"]
 
     with open(CLASSES, encoding="utf-8") as source:
         for line in source:
             line = line.split("#", 1)[0].strip()
             if not line:
+                continue
+            if line == "singletons":
+                for name in every_singleton:
+                    if name not in singletons:
+                        singletons.append(name)
+                continue
+            if line.startswith("singleton "):
+                named = line[len("singleton "):].strip()
+                if named not in every_singleton:
+                    sys.exit("%s is not a core singleton" % named)
+                if named not in singletons:
+                    singletons.append(named)
                 continue
             leaves = []
             if line.startswith("under "):
@@ -205,7 +229,7 @@ def selected(classes):
                          "%d. Name narrower branches."
                          % (named, len(here), MAX_PER_UNIT))
             groups.append((named, here))
-    return groups
+    return groups, singletons
 
 
 def every(groups):
@@ -218,10 +242,11 @@ def every(groups):
     return out
 
 
-def gather(api, classes, wanted):
+def gather(api, classes, wanted, singletons=()):
     rows = []
     left_out = 0
-    for name in wanted:
+    for name in list(wanted) + list(singletons):
+        alone = name in singletons
         for method in classes[name].get("methods", []):
             # A virtual is what a script implements rather than calls, a
             # vararg has no ptrcall, and a static one has no receiver to be
@@ -238,13 +263,14 @@ def gather(api, classes, wanted):
                 left_out += 1
                 continue
             # 14.4: a first parameter written self^ is the receiver, and a
-            # call passes what stands before the dot there without writing it.
-            written = ["self^"] + [kind[1] for kind in kinds]
-            if answer[1] is None:
-                signature = "p^" + ", ".join(written) + ";"
-            else:
-                signature = ("f^" + ", ".join(written) + " -> " +
-                             answer[1] + ";")
+            # call passes what stands before the dot there without writing
+            # it. A singleton's method has no receiver to write.
+            written = ([] if alone else ["self^"]) + [k[1] for k in kinds]
+            head = "p^" if answer[1] is None else "f^"
+            signature = head + ", ".join(written)
+            if answer[1] is not None:
+                signature += (" -> " if written else " -> ") + answer[1]
+            signature += ";"
             boxed = sum(1 for kind in kinds if kind[0] in BOXED)
             if boxed > MAX_BOXED:
                 sys.exit("%s.%s wants %d built arguments; raise "
@@ -254,6 +280,7 @@ def gather(api, classes, wanted):
                 "name": method["name"],
                 "signature": signature,
                 "class": name,
+                "module": ("godot." + name) if alone else None,
                 "hash": method["hash"],
                 "answer": answer[0],
                 "boxed": boxed,
@@ -344,12 +371,15 @@ def write(api, classes, wanted, rows, left_out):
         for index, piece in enumerate(pieces):
             tail = "," if index == len(pieces) - 1 else ""
             say('     "%s"%s' % (piece, tail))
-        say('     "%s", %uu,' % (row["class"], row["hash"]))
-        tail = "%s, %d, %d, %s, nullptr, nullptr}," % (
+        say('     "%s", %s, %uu,'
+            % (row["class"],
+               ('"%s"' % row["module"]) if row["module"] else "nullptr",
+               row["hash"]))
+        tail = "%s, %d, %d, %s, nullptr, nullptr, nullptr}," % (
             row["answer"], len(row["kinds"]), row["boxed"], shape)
         if len(tail) + 5 > 79:
             say("     %s," % row["answer"])
-            say("     %d, %d, %s, nullptr, nullptr},"
+            say("     %d, %d, %s, nullptr, nullptr, nullptr},"
                 % (len(row["kinds"]), row["boxed"], shape))
         else:
             say("     %s" % tail)
@@ -391,6 +421,22 @@ def write(api, classes, wanted, rows, left_out):
         "gdextension_interface_classdb_get_method_bind(")
     say("                    owner._native_ptr(), named._native_ptr(),")
     say("                    (GDExtensionInt)method.hash);")
+    say("            if (method.module_path != nullptr) {")
+    say("                // The one instance the engine holds. NULL where a")
+    say("                // server is not compiled into this build, which")
+    say("                // bound_call reads as an object that is not there.")
+    say("                method.owner = (GodotObject *)internal::")
+    say("                    gdextension_interface_global_get_singleton(")
+    say("                        owner._native_ptr());")
+    say("            }")
+    say("        }")
+    say('        if (method.module_path != nullptr) {')
+    say("            if (!lhat_register_func(program, method.module_path,")
+    say("                                    method.name, method.signature,")
+    say("                                    bound_call, &method)) {")
+    say("                return false;")
+    say("            }")
+    say("            continue;")
     say("        }")
     say('        if (!lhat_register_member(program, "godot",')
     say("                                  method.class_name, method.name,")
@@ -540,9 +586,9 @@ def unbound_reason(method, classes, wanted):
     return None
 
 
-def write_docs(api, classes, groups, rows):
+def write_docs(api, classes, groups, singletons, rows):
     """docs/godot-classes.md: what reaches L^ and what does not."""
-    wanted = every(groups)
+    wanted = every(groups) + list(singletons)
     lives_in = {}
     for named, names in groups:
         for name in names:
@@ -610,8 +656,11 @@ def write_docs(api, classes, groups, rows):
             if name in wanted:
                 mark = "○"
                 counted = "%d / %d" % (bound.get(name, 0), reachable)
-                where = "、".join("`lhat/Godot/%s.lh`" % one
-                                  for one in lives_in[name])
+                if name in singletons:
+                    where = "`godot.%s`" % name
+                else:
+                    where = "、".join("`lhat/Godot/%s.lh`" % one
+                                      for one in lives_in[name])
             else:
                 mark = "—"
                 counted = "0 / %d" % reachable
@@ -648,12 +697,12 @@ def main():
     with open(API, encoding="utf-8") as source:
         api = json.load(source)
     classes = {c["name"]: c for c in api["classes"]}
-    groups = selected(classes)
+    groups, singletons = selected(classes, api)
     wanted = every(groups)
-    rows, left_out = gather(api, classes, wanted)
+    rows, left_out = gather(api, classes, wanted, singletons)
     write(api, classes, wanted, rows, left_out)
     write_lh(api, classes, groups, rows)
-    write_docs(api, classes, groups, rows)
+    write_docs(api, classes, groups, singletons, rows)
 
 
 if __name__ == "__main__":

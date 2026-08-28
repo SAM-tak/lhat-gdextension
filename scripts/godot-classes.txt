@@ -33,9 +33,43 @@ under Node3D
 under Control
 under Node
 
-# Not a Node and not a branch. What a script extends here is Resource itself
-# -- a custom resource with @export fields, saved as a .tres and handed to a
-# node through the inspector, which is how Godot spells data that is edited
-# rather than written. The 378 classes under it are things a script loads and
-# passes rather than things it is worn by, so they are not taken.
-Resource
+# The other tree. A script is worn by Resource itself -- a custom resource
+# with @export fields, saved as a .tres and handed to a node through the
+# inspector, which is how Godot spells data that is edited rather than
+# written. What is under it is not worn but used: a Texture2D comes back from
+# get_texture and a PackedScene is what instantiate is called on, and without
+# them a script can pass such a thing around and do nothing with it. The line
+# is the same one the editor's "new resource" dialog draws
+# (filesystem_dock's set_base_type("Resource")).
+#
+# Three branches come off first, for the register limit above: the shader
+# graph's nodes are a hundred classes on their own, and the textures and the
+# audio effects are the next two crowds.
+under VisualShaderNode
+under Texture
+under AudioEffect
+under AnimationNode
+under Mesh
+under InputEvent
+under AudioStream
+under Material
+under Resource
+
+# What get_tree() answers. Not a Node and not a Resource -- a MainLoop -- but
+# nothing a script does without: quitting, changing scene, a one-shot timer,
+# the group calls. Its own subtree is three classes.
+under SceneTree
+
+# `singletons` takes every core singleton: a class the engine holds one
+# instance of, which a script never has in hand. GDScript writes the class
+# name and calls through it -- Input.is_action_pressed("ui_left") -- and so
+# does L^, as functions of a module of their own:
+#
+#     godot.Input.is_action_pressed("ui_left")
+#     godot.Time.get_ticks_msec()
+#
+# `singleton <Name>` takes one. Without these a script cannot read a key or
+# ask the time, and nothing else reaches them: a singleton has no receiver
+# for a member call to be written against.
+
+singletons
