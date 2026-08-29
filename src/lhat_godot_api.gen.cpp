@@ -9,7 +9,7 @@
 //     python scripts/gen-godot-api.py
 //
 // From Godot Engine v4.5.stable.official.
-// 855 classes, 13917 methods, 58 typed arrays. 2 methods were left
+// 854 classes, 13916 methods, 58 typed arrays. 2 methods were left
 // out because an argument or an answer of theirs is a raw pointer
 // or a typed dictionary's key or value, neither of which anything
 // here stands for.
@@ -3254,7 +3254,6 @@ BoundClass classes[] = {
     {"VisualShaderNodeWorldPositionFromDepth", "VisualShaderNode", nullptr},
     {"VoxelGI", "VisualInstance3D", nullptr},
     {"VoxelGIData", "Resource", nullptr},
-    {"WeakRef", "RefCounted", nullptr},
     {"WebRTCDataChannel", "PacketPeer", nullptr},
     {"WebRTCDataChannelExtension", "WebRTCDataChannel", nullptr},
     {"WebRTCMultiplayerPeer", "MultiplayerPeer", nullptr},
@@ -49865,10 +49864,6 @@ BoundMethod bound[] = {
      "f^self^ -> bool^;",
      "VoxelGIData", nullptr, 36873697u,
      LHAT_GD_BOOL, 0, 0, nullptr, nullptr, nullptr, nullptr},
-    {"get_ref",
-     "f^self^ -> any^;",
-     "WeakRef", nullptr, 1214101251u,
-     LHAT_GD_VARIANT, 0, 0, nullptr, nullptr, nullptr, nullptr},
     {"poll",
      "f^self^ -> number^;",
      "WebRTCDataChannel", nullptr, 166280745u,

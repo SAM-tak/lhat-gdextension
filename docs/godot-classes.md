@@ -6,8 +6,8 @@
 `python scripts/gen-godot-api.py` で増える。
 
 - エンジンのクラス: **971**
-- L^ に登録済み: **891**（うち singleton 36）
-- バインドされたメソッド: **13917**
+- L^ に登録済み: **890**（うち singleton 36）
+- バインドされたメソッド: **13916**
 
 メソッド数は「バインド済み / 呼べるもの」。呼べるものからは
 virtual（スクリプトが実装する側）、vararg（ptrcall が無い）、
@@ -995,7 +995,7 @@ L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の
 | `VisualShaderNodeTextureParameter` | `VisualShaderNodeParameter` | ○ | 10 / 10 | `godot.VisualShaderNodeTextureParameter` |
 | `VisualShaderNodeVarying` | `VisualShaderNode` | ○ | 4 / 4 | `godot.VisualShaderNodeVarying` |
 | `VisualShaderNodeVectorBase` | `VisualShaderNode` | ○ | 2 / 2 | `godot.VisualShaderNodeVectorBase` |
-| `WeakRef` | `RefCounted` | ○ | 1 / 1 | `godot.WeakRef` |
+| `WeakRef` | `RefCounted` | 除外 | 0 / 1 | — |
 | `WebRTCDataChannelExtension` | `WebRTCDataChannel` | ○ | 0 / 0 | `godot.WebRTCDataChannelExtension` |
 | `WebRTCMultiplayerPeer` | `MultiplayerPeer` | ○ | 8 / 8 | `godot.WebRTCMultiplayerPeer` |
 | `WebRTCPeerConnectionExtension` | `WebRTCPeerConnection` | ○ | 0 / 0 | `godot.WebRTCPeerConnectionExtension` |

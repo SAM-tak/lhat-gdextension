@@ -13,6 +13,7 @@
 
 #include "lhat_godot_api.gen.h"
 #include "lhat_godot_containers.h"
+#include "lhat_godot_util.h"
 #include "lhat_godot_handles.h"
 #include "lhat_godot_packed.h"
 #include "lhat_godot_values.h"
@@ -853,6 +854,12 @@ const Godot *register_godot(LhatProgram *program)
     // methods ask for -- each declared under godot.Array, which is what puts
     // the element type in the checker's hands without converting anything.
     if (!register_containers(program, module)) {
+        return nullptr;
+    }
+
+    // 05 の 8.7: the engine's global functions, which have no receiver and
+    // so become functions of this module rather than members of a type.
+    if (!register_util(program, module)) {
         return nullptr;
     }
 

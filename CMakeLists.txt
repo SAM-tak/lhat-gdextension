@@ -113,6 +113,7 @@ add_library(lhat_gdextension SHARED
     src/lhat_godot_handles.cpp
     src/lhat_godot_packed.cpp
     src/lhat_godot_containers.cpp
+    src/lhat_godot_util.cpp
     src/lhat_resource_format.cpp
 )
 

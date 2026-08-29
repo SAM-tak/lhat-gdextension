@@ -76,3 +76,15 @@ AudioStreamPlaybackSynchronized
 # MissingNode and MissingResource are left out, as Godot leaves them out of
 # its own dialog: each stands for a class a scene named and the build does
 # not have, so what a script would do with one is nothing.
+
+# Nothing can hand a script one of these and nothing can make one. weakref()
+# is the only maker and it is a utility function; ClassDB.instantiate answers
+# one that is permanently empty, since set_ref is not exposed. Nor would it
+# earn its place if it were reachable: a godot.Object holds an instance id
+# rather than a pointer, so it is ALREADY weak for everything that is not
+# reference counted, and isValid() is the question WeakRef would answer.
+#
+# Counted over Godot's own 690 .gd files: weakref( appears zero times, and
+# the two mentions of the type are both in the GDScript test suite, testing
+# WeakRef rather than using it.
+!WeakRef
