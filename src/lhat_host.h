@@ -11,6 +11,7 @@
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/templates/hash_map.hpp>
+#include <godot_cpp/templates/vector.hpp>
 #include <godot_cpp/variant/char_string.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
@@ -76,6 +77,22 @@ String text_of(LhatValue value);
 String problem(const String &where, const String &what);
 String run_problem(LhatMachine *machine, const String &where,
                    const LhatRunResult &ran);
+
+// 04 の 11.6改: one frame of what a fault left standing, taken at the moment
+// it happened. The machine's own frames are readable only until the next run
+// and the editor asks long after -- it asks when the debugger panel is
+// opened, which is a message from another process -- so run_problem copies
+// them out rather than leaving a pointer to walk.
+struct FaultFrame {
+    String source;  // the unit's path
+    String name;    // the binding or member the body was written under
+    int32_t line;
+};
+
+// The last fault, as the debugger virtuals answer it (lhat_language.cpp).
+// Empty before the first one.
+const String &last_fault();
+const Vector<FaultFrame> &last_fault_frames();
 
 // One level of indentation, as the editor is set to write one. A tab
 // wherever there is no editor to ask.

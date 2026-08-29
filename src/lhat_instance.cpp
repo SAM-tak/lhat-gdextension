@@ -421,11 +421,19 @@ void instance_call(GDExtensionScriptInstanceDataPtr data,
     }
     if (ran.status != LHAT_RUN_OK) {
         // 04 の 11.6改: line, panic value, and the frames still standing.
+        // Pushing it is also what makes the engine ask for the backtrace
+        // (ScriptBacktrace reads debug_get_current_stack_info), so the L^
+        // frames land beside the caller's own.
         UtilityFunctions::push_error(host::run_problem(
             machine, it->script->get_path() + String(".") +
                          String(name_of(method)),
             ran));
-        error->error = GDEXTENSION_CALL_ERROR_INVALID_METHOD;
+        // And the call itself answered: the method was there, it ran, and it
+        // failed. Saying INVALID_METHOD instead made the engine report a
+        // second error -- "Nonexistent function" -- and abort whoever called,
+        // which is neither true nor what a GDScript method that errors does.
+        error->error = GDEXTENSION_CALL_OK;
+        *reinterpret_cast<Variant *>(answer) = Variant();
         return;
     }
 

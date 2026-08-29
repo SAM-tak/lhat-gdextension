@@ -153,9 +153,86 @@ String problem(const String &where, const String &what)
 // 04 の 11.6改: a runtime fault said as much as the machine knows -- the
 // line, the panic's own value, and the frames still standing (read before
 // the machine is disposed or run again).
+namespace {
+
+// One process, one last fault -- which is what the debugger panel shows and
+// what a second fault replaces.
+//
+// Held behind a call rather than written as a global: a godot-cpp String is
+// built through the interface, and a global's constructor runs when the
+// library is loaded, which is before the interface is there. A local static
+// is built on the first call instead, which is after.
+String &fault_said()
+{
+    static String it;
+    return it;
+}
+
+Vector<FaultFrame> &fault_frames()
+{
+    static Vector<FaultFrame> it;
+    return it;
+}
+
+// 04 の 11.6改: the frames a fault left standing, copied out while they are
+// still readable. `level` counts from the innermost, which is the order the
+// engine's stack panel wants.
+void remember_frames(LhatMachine *machine)
+{
+    fault_frames().clear();
+    if (machine == nullptr) {
+        return;
+    }
+    const size_t deep = lhat_machine_fault_depth(machine);
+    for (size_t level = 0; level < deep; level++) {
+        LhatFrameInfo said = {};
+        if (!lhat_machine_fault_frame(machine, level, &said)) {
+            break;
+        }
+        FaultFrame one;
+        // units_for holds a unit under the path with its scheme cut off, so
+        // that is what a frame carries -- and the panel wants something it
+        // can open, which is what GDScript hands it (res://boom.gd). Put it
+        // back on unless the path already says where it lives.
+        one.source = String();
+        if (said.source != nullptr) {
+            one.source = String::utf8(said.source);
+            if (!one.source.begins_with("res://") &&
+                !one.source.begins_with("user://")) {
+                one.source = String("res://") + one.source;
+            }
+        }
+        // A bare f^ was written under no name, and the unit's own body is
+        // not a subroutine at all -- the panel wants something to show for
+        // each, and these are what the traceback text says.
+        one.name = said.name != nullptr      ? String::utf8(said.name)
+                   : said.top_level          ? String("<top level>")
+                   : said.coroutine          ? String("<walk>")
+                   : said.disposing          ? String("<cleanup>")
+                                             : String("<anonymous>");
+        one.line = (int32_t)said.line;
+        fault_frames().push_back(one);
+    }
+}
+
+}  // namespace
+
+const String &last_fault()
+{
+    return fault_said();
+}
+
+const Vector<FaultFrame> &last_fault_frames()
+{
+    return fault_frames();
+}
+
 String run_problem(LhatMachine *machine, const String &where,
                    const LhatRunResult &ran)
 {
+    // Before anything else: reading them is what the machine allows until
+    // the next run, and building the text below runs nothing.
+    remember_frames(machine);
     String text = String::utf8(lhat_run_status_message(ran.status));
     if (ran.status == LHAT_RUN_PANIC) {
         text += ": " + text_of(ran.value);
@@ -172,7 +249,8 @@ String run_problem(LhatMachine *machine, const String &where,
             lhat_free(spelt);
         }
     }
-    return problem(where, text);
+    fault_said() = problem(where, text);
+    return fault_said();
 }
 
 String indentation()

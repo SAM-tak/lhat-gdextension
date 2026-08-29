@@ -1054,34 +1054,55 @@ int32_t LhatLanguage::_profiling_get_frame_data(
     return 0;
 }
 
+// 04 の 11.6改 through the engine's debugger panel. What every one of these
+// answers is the fault host::run_problem copied out when it happened, not
+// the machine's own frames: those are readable only until the next run, and
+// the panel asks when a person opens it.
+//
+// `level` counts from the innermost frame, which is the order the panel
+// wants and the order lhat_machine_fault_frame walks.
 String LhatLanguage::_debug_get_error() const
 {
-    return String();
+    return host::last_fault();
 }
 
 int32_t LhatLanguage::_debug_get_stack_level_count() const
 {
-    return 0;
+    return (int32_t)host::last_fault_frames().size();
 }
 
 int32_t LhatLanguage::_debug_get_stack_level_line(int32_t level) const
 {
-    (void)level;
-    return 0;
+    const Vector<host::FaultFrame> &frames = host::last_fault_frames();
+    if (level < 0 || level >= frames.size()) {
+        return 0;
+    }
+    return frames[level].line;
 }
 
 String LhatLanguage::_debug_get_stack_level_function(int32_t level) const
 {
-    (void)level;
-    return String();
+    const Vector<host::FaultFrame> &frames = host::last_fault_frames();
+    if (level < 0 || level >= frames.size()) {
+        return String();
+    }
+    return frames[level].name;
 }
 
 String LhatLanguage::_debug_get_stack_level_source(int32_t level) const
 {
-    (void)level;
-    return String();
+    const Vector<host::FaultFrame> &frames = host::last_fault_frames();
+    if (level < 0 || level >= frames.size()) {
+        return String();
+    }
+    return frames[level].source;
 }
 
+// Still empty, and not for want of trying: a LhatProto keeps its debug_name,
+// its source_name and a line per instruction, and no table of what its
+// registers were called. Answering these wants the compiler to keep one --
+// the same table a DAP `variables` request wants, so it lands with that
+// work rather than ahead of it.
 Dictionary LhatLanguage::_debug_get_stack_level_locals(int32_t level,
                                                        int32_t max_subitems,
                                                        int32_t max_depth)
@@ -1116,9 +1137,21 @@ Dictionary LhatLanguage::_debug_get_globals(int32_t max_subitems,
     return Dictionary();
 }
 
+// The same frames as one array, which is what the panel reads to draw the
+// list rather than asking level by level. The three keys are the ones
+// ScriptDebugger looks for.
 TypedArray<Dictionary> LhatLanguage::_debug_get_current_stack_info()
 {
-    return TypedArray<Dictionary>();
+    TypedArray<Dictionary> out;
+    const Vector<host::FaultFrame> &frames = host::last_fault_frames();
+    for (int at = 0; at < frames.size(); at++) {
+        Dictionary one;
+        one["file"] = frames[at].source;
+        one["func"] = frames[at].name;
+        one["line"] = frames[at].line;
+        out.push_back(one);
+    }
+    return out;
 }
 
 }  // namespace godot
