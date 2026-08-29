@@ -26,7 +26,7 @@ L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の
 エディタが新規スクリプトの親として提示するもの（`CreateDialog::_should_hide_type` を抜けたもの）。Node 派生と Resource 派生。
 
 | クラス | 親 | L^ | メソッド | 書き方 |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `AcceptDialog` | `Window` | ○ | 16 / 16 | `godot.AcceptDialog` |
 | `AimModifier3D` | `BoneConstraint3D` | ○ | 8 / 8 | `godot.AimModifier3D` |
 | `AnimatableBody2D` | `StaticBody2D` | ○ | 2 / 2 | `godot.AnimatableBody2D` |
@@ -641,7 +641,7 @@ L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の
 どのメソッドの引数・答え・シグナル・プロパティにも出てくるが、親としては提示されないもの。抽象基底とシングルトンが主。
 
 | クラス | 親 | L^ | メソッド | 書き方 |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `AudioEffectInstance` | `RefCounted` | ○ | 0 / 0 | `godot.AudioEffectInstance` |
 | `AudioSample` | `RefCounted` | ○ | 0 / 0 | `godot.AudioSample` |
 | `AudioSamplePlayback` | `RefCounted` | ○ | 0 / 0 | `godot.AudioSamplePlayback` |
@@ -795,7 +795,7 @@ L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の
 上のどちらでもないもの。エディタ専用 API、直接 `new` して使う RefCounted 派生など。
 
 | クラス | 親 | L^ | メソッド | 書き方 |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `AESContext` | `RefCounted` | ○ | 4 / 4 | `godot.AESContext` |
 | `AStar2D` | `RefCounted` | ○ | 25 / 25 | `godot.AStar2D` |
 | `AStar3D` | `RefCounted` | ○ | 25 / 25 | `godot.AStar3D` |
