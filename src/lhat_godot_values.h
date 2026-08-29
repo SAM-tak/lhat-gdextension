@@ -55,6 +55,24 @@ bool value_taken(LhatValue held, const Godot *module, Vector3 *out);
 bool value_taken(LhatValue held, const Godot *module, Vector4 *out);
 bool value_taken(LhatValue held, const Godot *module, Color *out);
 
+// 05 の 8.9: whichever of the value types the Variant holds, answered as
+// that value. `found` says whether it was one of them at all.
+//
+// This is what a container's `at` needs and what from_variant must not do:
+// 8.9 bars a value from anything that outlives a frame, so it may be
+// answered outright and may not be written into a table or an any^.
+LhatValue value_of_variant(LhatMachine *machine, const Godot *module,
+                           const Variant &held, bool *found);
+
+// The other way: whichever of the value types the L^ value IS -- not a box
+// of one, but the bytes themselves, as a parameter written godot.Vector2i
+// receives them. `found` says whether it was one.
+//
+// to_variant does not do this on purpose: it reads a box, because an any^ is
+// where it looks and 8.9 keeps a bare value out of one. A parameter that
+// names the type is the case this is for.
+Variant variant_of_value(LhatValue value, const Godot *module, bool *found);
+
 // 05 の 8.9: what a box of one of the value types holds, as a Variant, and
 // the other way. `found` says whether the value was a box of one of ours.
 //

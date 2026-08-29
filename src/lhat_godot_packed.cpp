@@ -181,7 +181,7 @@ bool element_in<Color>(LhatValue held, const Godot *module, Color *out)
 template <typename P>
 P *held_packed(LhatValue value, const Godot *module)
 {
-    return (P *)lhat_hostdata_pointer(value, module->packed_tags[Packed<P>::kind]);
+    return (P *)lhat_hostdata_pointer(value, module->handle_tags[Packed<P>::kind]);
 }
 
 template <typename P>
@@ -362,7 +362,7 @@ bool answer_packed(LhatMachine *machine, const Godot *module, const P &from,
                    LhatValue *out)
 {
     P *held = memnew(P(from));
-    if (!lhat_machine_make_hostdata(machine, module->packed_tags[Packed<P>::kind],
+    if (!lhat_machine_make_hostdata(machine, module->handle_tags[Packed<P>::kind],
                                     held, out)) {
         memdelete(held);
         return false;
@@ -392,7 +392,7 @@ bool declare_packed(LhatProgram *program, Godot *module, const char *maker)
     const char *element = Packed<P>::written();
     const LhatHostDataTag *tag =
         lhat_register_hostdata_type(program, "godot", name);
-    module->packed_tags[Packed<P>::kind] = tag;
+    module->handle_tags[Packed<P>::kind] = tag;
     if (tag == nullptr) {
         return false;
     }

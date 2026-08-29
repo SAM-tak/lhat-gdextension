@@ -12,6 +12,7 @@
 #include <godot_cpp/variant/variant.hpp>
 
 #include "lhat_godot_api.gen.h"
+#include "lhat_godot_containers.h"
 #include "lhat_godot_handles.h"
 #include "lhat_godot_packed.h"
 #include "lhat_godot_values.h"
@@ -406,7 +407,7 @@ bool laid_out(const BoundMethod *method, const LhatValue *arguments,
             const LhatHostDataTag *tag =
                 which == Variant::CALLABLE  ? module->callable_tag
                 : which == Variant::SIGNAL  ? module->signal_tag
-                                            : module->packed_tags[which];
+                                            : module->handle_tags[which];
             slots[i] = (GDExtensionConstTypePtr)lhat_hostdata_pointer(given,
                                                                       tag);
             if (slots[i] == nullptr) {
@@ -483,6 +484,18 @@ bool laid_out(const BoundMethod *method, const LhatValue *arguments,
         }
     }
     return true;
+}
+
+// 8.8's handles that answered() has a return buffer for. The rest -- a
+// Callable, a Signal, one of the ten packed arrays -- go by name instead,
+// which is the right answer there rather than no answer.
+bool answerable(uint8_t kind)
+{
+    if (kind < LHAT_GD_HOSTDATA) {
+        return true;
+    }
+    const int which = kind - LHAT_GD_HOSTDATA;
+    return which == Variant::ARRAY || which == Variant::DICTIONARY;
 }
 
 // The call itself, and what comes back read as the kind the signature said.
@@ -565,6 +578,27 @@ LhatValue answered(LhatMachine *machine, const BoundMethod *method,
             from_variant(machine, back, &made, module);
             return made;
         }
+        // 8.8: the two containers, whose ptrcall buffer is one of themselves.
+        // PtrToArg<Array> is direct, and PtrToArg<TypedArray<T>> encodes
+        // through a plain Array -- so a typed answer lands here too, and says
+        // which one it is through its own elements rather than through the
+        // kind.
+        case LHAT_GD_HOSTDATA + Variant::ARRAY: {
+            Array back;
+            internal::gdextension_interface_object_method_bind_ptrcall(
+                bind, owner, slots, &back);
+            LhatValue made = lhat_nil();
+            make_array(machine, module, back, &made);
+            return made;
+        }
+        case LHAT_GD_HOSTDATA + Variant::DICTIONARY: {
+            Dictionary back;
+            internal::gdextension_interface_object_method_bind_ptrcall(
+                bind, owner, slots, &back);
+            LhatValue made = lhat_nil();
+            make_dictionary(machine, module, back, &made);
+            return made;
+        }
         default: {
             // 8.9: the bytes come back into room wide enough for any value
             // type, and the tag is what says how many of them are the value.
@@ -617,7 +651,7 @@ void bound_call(LhatMachine *machine, void *context,
     // array, and by name is the right answer there rather than no answer.
     // Only this road wants something with methods on it, so only this road
     // pays for the instance binding.
-    if (method->bind == nullptr || method->answer >= LHAT_GD_HOSTDATA) {
+    if (method->bind == nullptr || !answerable(method->answer)) {
         // This road wants something with methods on it, so this is the one
         // place that pays for godot-cpp's instance binding.
         Object *object =
@@ -812,6 +846,13 @@ const Godot *register_godot(LhatProgram *program)
     // of them that are copied on write.
     if (!register_handles(program, module) ||
         !register_packed(program, module)) {
+        return nullptr;
+    }
+
+    // 05 の 8.8改: Array and Dictionary, and a type per element the bound
+    // methods ask for -- each declared under godot.Array, which is what puts
+    // the element type in the checker's hands without converting anything.
+    if (!register_containers(program, module)) {
         return nullptr;
     }
 

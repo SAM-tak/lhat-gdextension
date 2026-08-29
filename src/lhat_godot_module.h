@@ -42,9 +42,18 @@ struct Godot {
     // so neither is one of 8.9's values (lhat_godot_handles.h).
     const LhatHostDataTag *callable_tag = nullptr;
     const LhatHostDataTag *signal_tag = nullptr;
-    // 05 の 8.8: one tag per packed array, kept under the Variant kind it
-    // stands for (lhat_godot_packed.h).
-    const LhatHostDataTag *packed_tags[Variant::VARIANT_MAX] = {};
+    // 05 の 8.8: one tag per handle that is told apart by a Variant kind --
+    // the ten packed arrays (lhat_godot_packed.h) and the two containers
+    // (lhat_godot_containers.h) -- kept under the kind it stands for, so a
+    // host that has read a Variant finds the tag from what it found.
+    const LhatHostDataTag *handle_tags[Variant::VARIANT_MAX] = {};
+
+    // 05 の 8.8改: the typed arrays, which are all one Variant kind and so
+    // cannot live above. The key is what the engine says the elements are
+    // (lhat_godot_containers.cpp's element_key). Each is declared under
+    // godot.Array, so nothing has to find one of these to read an array --
+    // only to say which one it is.
+    HashMap<String, const LhatHostDataTag *> array_tags;
 
     // A registered name is borrowed rather than copied
     // (lhat_type_add_member keeps the pointer it is given), and the names

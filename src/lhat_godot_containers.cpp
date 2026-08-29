@@ -1,0 +1,660 @@
+#include "lhat_godot_containers.h"
+
+#include <godot_cpp/core/memory.hpp>
+#include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/variant/string_name.hpp>
+
+#include "lhat_godot_module.h"
+#include "lhat_godot_values.h"
+#include "lhat_variant.h"
+
+namespace godot {
+namespace host {
+namespace {
+
+const Godot *module_of(void *context)
+{
+    return (const Godot *)context;
+}
+
+// What the engine says a typed array's elements are, as one string, so a
+// value coming back finds the type it was declared as. An object is named by
+// its class and everything else by its Variant kind, which cannot collide --
+// a class name is never digits.
+String element_key(int64_t builtin, const StringName &class_name)
+{
+    return builtin == Variant::OBJECT ? String(class_name)
+                                      : String::num_int64(builtin);
+}
+
+// One element the other way. 8.9's values are asked for first, because
+// to_variant reads a box and a parameter written godot.Vector2i is handed
+// the bytes themselves.
+Variant element_taken(LhatValue value, const Godot *module)
+{
+    bool valued = false;
+    Variant held = variant_of_value(value, module, &valued);
+    return valued ? held : to_variant(value, module);
+}
+
+// ---------------------------------------------------------------------------
+// The members, written once and registered for every container
+
+Array *held_array_of(LhatValue value, const Godot *module)
+{
+    return (Array *)lhat_hostdata_pointer(value,
+                                          module->handle_tags[Variant::ARRAY]);
+}
+
+Dictionary *held_dictionary_of(LhatValue value, const Godot *module)
+{
+    return (Dictionary *)lhat_hostdata_pointer(
+        value, module->handle_tags[Variant::DICTIONARY]);
+}
+
+void array_size(LhatMachine *machine, void *context,
+                const LhatValue *arguments, size_t count, LhatValue *answers,
+                int *answer_count)
+{
+    (void)machine;
+    const Array *held =
+        count > 0 ? held_array_of(arguments[0], module_of(context)) : nullptr;
+    answers[0] = lhat_integer(held != nullptr ? held->size() : 0);
+    *answer_count = 1;
+}
+
+// 04 の 11.3: an index that is not there answers nothing rather than
+// stopping -- the same reading a table gives one.
+void array_at(LhatMachine *machine, void *context, const LhatValue *arguments,
+              size_t count, LhatValue *answers, int *answer_count)
+{
+    const Godot *module = module_of(context);
+    const Array *held =
+        count > 0 ? held_array_of(arguments[0], module) : nullptr;
+    int64_t at = count > 1 && lhat_is_integer(arguments[1])
+                     ? lhat_as_integer(arguments[1])
+                     : 0;
+    if (held == nullptr || at < 1 || at > held->size()) {
+        return;
+    }
+    // 02 の 14: a sequence is written from 1, so that is what is read here.
+    answers[0] = element_answer(machine, module, (*held)[at - 1]);
+    *answer_count = 1;
+}
+
+void array_set(LhatMachine *machine, void *context, const LhatValue *arguments,
+               size_t count, LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    const Godot *module = module_of(context);
+    Array *held = count > 0 ? held_array_of(arguments[0], module) : nullptr;
+    int64_t at = count > 1 && lhat_is_integer(arguments[1])
+                     ? lhat_as_integer(arguments[1])
+                     : 0;
+    if (held == nullptr || count < 3 || at < 1 || at > held->size()) {
+        return;
+    }
+    // A typed array refuses an element of the wrong type here, with the
+    // engine's own error -- the checker has said what it can from the
+    // signature, and what is left is what only the engine knows.
+    held->set(at - 1, element_taken(arguments[2], module));
+}
+
+void array_append(LhatMachine *machine, void *context,
+                  const LhatValue *arguments, size_t count, LhatValue *answers,
+                  int *answer_count)
+{
+    (void)machine;
+    const Godot *module = module_of(context);
+    Array *held = count > 0 ? held_array_of(arguments[0], module) : nullptr;
+    if (held == nullptr || count < 2) {
+        return;
+    }
+    held->push_back(element_taken(arguments[1], module));
+}
+
+void array_clear(LhatMachine *machine, void *context,
+                 const LhatValue *arguments, size_t count, LhatValue *answers,
+                 int *answer_count)
+{
+    (void)machine;
+    Array *held =
+        count > 0 ? held_array_of(arguments[0], module_of(context)) : nullptr;
+    if (held != nullptr) {
+        held->clear();
+    }
+}
+
+void array_dispose(LhatMachine *machine, void *context,
+                   const LhatValue *arguments, size_t count,
+                   LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    Array *held =
+        count > 0 ? held_array_of(arguments[0], module_of(context)) : nullptr;
+    if (held != nullptr) {
+        memdelete(held);
+    }
+}
+
+// 02 の 16.3 with 05 の 8.8: `for^ x in^ a` runs this. The array rides as the
+// coroutine's held value, which is what keeps the hostdata alive for the
+// walk; the cursor re-reads it each step, so an append mid-walk is seen.
+struct ArrayWalk {
+    const Godot *module;
+    LhatValue over;
+    int64_t at;  // 1-origin, the next element to hand over
+};
+
+bool array_step(LhatMachine *machine, void *context, const LhatValue *sent,
+                size_t sent_count, LhatValue *answers, int *answer_count)
+{
+    (void)sent;  // the loops send nothing in
+    (void)sent_count;
+    ArrayWalk *walk = (ArrayWalk *)context;
+    const Array *held = held_array_of(walk->over, walk->module);
+    if (held == nullptr || walk->at > held->size()) {
+        // 13.9's third slot: a walk that ends with nothing.
+        return false;
+    }
+    answers[0] = element_answer(machine, walk->module, (*held)[walk->at - 1]);
+    *answer_count = 1;
+    walk->at++;
+    return true;
+}
+
+// Under the dispose^ contract: once, and never reaching into the L^ API --
+// the sweep may be the caller.
+void array_walk_release(LhatMachine *machine, void *context,
+                        const LhatValue *arguments, size_t count,
+                        LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)arguments;
+    (void)count;
+    memdelete((ArrayWalk *)context);
+}
+
+void array_iterate(LhatMachine *machine, void *context,
+                   const LhatValue *arguments, size_t count,
+                   LhatValue *answers, int *answer_count)
+{
+    const Godot *module = module_of(context);
+    if (count == 0 || held_array_of(arguments[0], module) == nullptr) {
+        return;
+    }
+    ArrayWalk *walk = memnew(ArrayWalk);
+    walk->module = module;
+    walk->over = arguments[0];
+    walk->at = 1;
+    LhatValue out = lhat_nil();
+    if (!lhat_machine_make_coroutine(machine, array_step, walk,
+                                     array_walk_release, arguments[0], &out)) {
+        memdelete(walk);
+        return;
+    }
+    answers[0] = out;
+    *answer_count = 1;
+}
+
+// ---------------------------------------------------------------------------
+// The dictionary, which is keyed rather than counted
+
+void dictionary_size(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    const Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module_of(context))
+                  : nullptr;
+    answers[0] = lhat_integer(held != nullptr ? held->size() : 0);
+    *answer_count = 1;
+}
+
+void dictionary_at(LhatMachine *machine, void *context,
+                   const LhatValue *arguments, size_t count,
+                   LhatValue *answers, int *answer_count)
+{
+    const Godot *module = module_of(context);
+    const Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module) : nullptr;
+    if (held == nullptr || count < 2) {
+        return;
+    }
+    // 04 の 11.3 again: a key that is not there answers nothing.
+    Variant key = element_taken(arguments[1], module);
+    if (!held->has(key)) {
+        return;
+    }
+    answers[0] = element_answer(machine, module, (*held)[key]);
+    *answer_count = 1;
+}
+
+void dictionary_set(LhatMachine *machine, void *context,
+                    const LhatValue *arguments, size_t count,
+                    LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    const Godot *module = module_of(context);
+    Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module) : nullptr;
+    if (held == nullptr || count < 3) {
+        return;
+    }
+    (*held)[element_taken(arguments[1], module)] =
+        element_taken(arguments[2], module);
+}
+
+void dictionary_has(LhatMachine *machine, void *context,
+                    const LhatValue *arguments, size_t count,
+                    LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    const Godot *module = module_of(context);
+    const Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module) : nullptr;
+    answers[0] = lhat_bool(held != nullptr && count > 1 &&
+                           held->has(element_taken(arguments[1], module)));
+    *answer_count = 1;
+}
+
+void dictionary_erase(LhatMachine *machine, void *context,
+                      const LhatValue *arguments, size_t count,
+                      LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    const Godot *module = module_of(context);
+    Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module) : nullptr;
+    if (held != nullptr && count > 1) {
+        held->erase(element_taken(arguments[1], module));
+    }
+}
+
+void dictionary_keys(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
+{
+    const Godot *module = module_of(context);
+    const Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module) : nullptr;
+    if (held == nullptr) {
+        return;
+    }
+    LhatValue out = lhat_nil();
+    if (!make_array(machine, module, held->keys(), &out)) {
+        return;
+    }
+    answers[0] = out;
+    *answer_count = 1;
+}
+
+void dictionary_clear(LhatMachine *machine, void *context,
+                      const LhatValue *arguments, size_t count,
+                      LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module_of(context))
+                  : nullptr;
+    if (held != nullptr) {
+        held->clear();
+    }
+}
+
+void dictionary_dispose(LhatMachine *machine, void *context,
+                        const LhatValue *arguments, size_t count,
+                        LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module_of(context))
+                  : nullptr;
+    if (held != nullptr) {
+        memdelete(held);
+    }
+}
+
+// The walk hands over keys, which is what a dictionary's own `for^` gives and
+// what `at` is then written with.
+struct DictionaryWalk {
+    const Godot *module;
+    LhatValue over;
+    Array keys;
+    int64_t at;
+};
+
+bool dictionary_step(LhatMachine *machine, void *context,
+                     const LhatValue *sent, size_t sent_count,
+                     LhatValue *answers, int *answer_count)
+{
+    (void)sent;
+    (void)sent_count;
+    DictionaryWalk *walk = (DictionaryWalk *)context;
+    if (walk->at > walk->keys.size()) {
+        return false;
+    }
+    answers[0] =
+        element_answer(machine, walk->module, walk->keys[walk->at - 1]);
+    *answer_count = 1;
+    walk->at++;
+    return true;
+}
+
+void dictionary_walk_release(LhatMachine *machine, void *context,
+                             const LhatValue *arguments, size_t count,
+                             LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)arguments;
+    (void)count;
+    memdelete((DictionaryWalk *)context);
+}
+
+void dictionary_iterate(LhatMachine *machine, void *context,
+                        const LhatValue *arguments, size_t count,
+                        LhatValue *answers, int *answer_count)
+{
+    const Godot *module = module_of(context);
+    const Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module) : nullptr;
+    if (held == nullptr) {
+        return;
+    }
+    // The keys are taken once, so a set mid-walk neither adds a step nor
+    // drops one -- unlike the array's, whose cursor re-reads. A hash has no
+    // stable order to re-read against.
+    DictionaryWalk *walk = memnew(DictionaryWalk);
+    walk->module = module;
+    walk->over = arguments[0];
+    walk->keys = held->keys();
+    walk->at = 1;
+    LhatValue out = lhat_nil();
+    if (!lhat_machine_make_coroutine(machine, dictionary_step, walk,
+                                     dictionary_walk_release, arguments[0],
+                                     &out)) {
+        memdelete(walk);
+        return;
+    }
+    answers[0] = out;
+    *answer_count = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Making one, and declaring the types
+
+bool answer_array(LhatMachine *machine, const Godot *module, const Array &from,
+                  const LhatHostDataTag *tag, LhatValue *out)
+{
+    Array *held = memnew(Array(from));
+    if (!lhat_machine_make_hostdata(machine, tag, held, out)) {
+        memdelete(held);
+        return false;
+    }
+    return true;
+}
+
+// f^ -> godot.Array (and one per typed array): an empty one, typed as the
+// name says so that handing it to the engine passes Array::assign outright.
+void make_array_of(LhatMachine *machine, void *context,
+                   const LhatValue *arguments, size_t count,
+                   LhatValue *answers, int *answer_count)
+{
+    (void)arguments;
+    (void)count;
+    const BoundContainer *what = (const BoundContainer *)context;
+    const Godot *module = what->module;
+    const LhatHostDataTag *tag = module->handle_tags[Variant::ARRAY];
+    if (what->base != nullptr) {
+        const LhatHostDataTag *const *found = module->array_tags.getptr(
+            element_key(what->builtin,
+                        StringName(what->class_name ? what->class_name : "")));
+        if (found != nullptr) {
+            tag = *found;
+        }
+    }
+    Array made;
+    if (what->base != nullptr) {
+        made.set_typed((uint32_t)what->builtin,
+                       StringName(what->class_name ? what->class_name : ""),
+                       Variant());
+    }
+    LhatValue out = lhat_nil();
+    if (!answer_array(machine, module, made, tag, &out)) {
+        return;
+    }
+    answers[0] = out;
+    *answer_count = 1;
+}
+
+void make_dictionary_of(LhatMachine *machine, void *context,
+                        const LhatValue *arguments, size_t count,
+                        LhatValue *answers, int *answer_count)
+{
+    (void)arguments;
+    (void)count;
+    const Godot *module = module_of(context);
+    Dictionary *held = memnew(Dictionary);
+    LhatValue out = lhat_nil();
+    if (!lhat_machine_make_hostdata(
+            machine, module->handle_tags[Variant::DICTIONARY], held, &out)) {
+        memdelete(held);
+        return;
+    }
+    answers[0] = out;
+    *answer_count = 1;
+}
+
+struct Member {
+    const char *name;
+    const char *signature;
+    LhatHostFn call;
+};
+
+bool declare_members(LhatProgram *program, Godot *module, const char *name,
+                     const Member *members, size_t how_many)
+{
+    for (size_t i = 0; i < how_many; i++) {
+        if (!lhat_register_member(program, "godot", name, members[i].name,
+                                  members[i].signature, members[i].call,
+                                  module)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// One name in L^ for one in the engine: get_children becomes getChildren, so
+// a maker for godot.ArrayOfNode is arrayOfNode.
+const char *maker_named(Godot *module, const char *name)
+{
+    String spelt = String(name);
+    return kept(module, spelt.substr(0, 1).to_lower() + spelt.substr(1));
+}
+
+bool declare_array(LhatProgram *program, Godot *module,
+                   BoundContainer *what)
+{
+    const char *element = what->element;
+    what->module = module;
+    const LhatHostDataTag *tag =
+        what->base == nullptr
+            ? lhat_register_hostdata_type(program, "godot", what->name)
+            : lhat_register_hostdata_subtype(program, "godot", what->name,
+                                             "godot", what->base);
+    if (tag == nullptr) {
+        return false;
+    }
+    if (what->base == nullptr) {
+        module->handle_tags[Variant::ARRAY] = tag;
+    } else {
+        module->array_tags.insert(
+            element_key(what->builtin,
+                        StringName(what->class_name ? what->class_name : "")),
+            tag);
+    }
+
+    const Member members[] = {
+        {"size", kept(module, "f^self^ -> number^;"), array_size},
+        {"at", kept(module, String("f^self^, number^ -> ") + element + ";"),
+         array_at},
+        {"set", kept(module, String("p^self^, number^, ") + element + ";"),
+         array_set},
+        {"append", kept(module, String("p^self^, ") + element + ";"),
+         array_append},
+        {"clear", kept(module, "p^self^;"), array_clear},
+        // Bare `iterate`: on a host type the two spellings name one member
+        // (14.17改), and every name here is the library's.
+        {"iterate",
+         kept(module, String("f^self^ -> c^{p^ -> ") + element + "};"),
+         array_iterate},
+    };
+    if (!declare_members(program, module, what->name, members,
+                         sizeof(members) / sizeof(members[0]))) {
+        return false;
+    }
+    // 8.8改 reads the release through the base, so the bare one carries it
+    // for every typed array declared under it.
+    if (what->base == nullptr &&
+        !lhat_register_member(program, "godot", what->name, "dispose",
+                              kept(module, "p^self^;"), array_dispose,
+                              module)) {
+        return false;
+    }
+    return lhat_register_func(
+        program, "godot", maker_named(module, what->name),
+        kept(module, String("f^ -> godot.") + what->name + ";"), make_array_of,
+        (void *)what);
+}
+
+bool declare_dictionary(LhatProgram *program, Godot *module)
+{
+    const LhatHostDataTag *tag =
+        lhat_register_hostdata_type(program, "godot", "Dictionary");
+    if (tag == nullptr) {
+        return false;
+    }
+    module->handle_tags[Variant::DICTIONARY] = tag;
+
+    const Member members[] = {
+        {"size", kept(module, "f^self^ -> number^;"), dictionary_size},
+        {"at", kept(module, "f^self^, any^ -> any^;"), dictionary_at},
+        {"set", kept(module, "p^self^, any^, any^;"), dictionary_set},
+        {"has", kept(module, "f^self^, any^ -> bool^;"), dictionary_has},
+        {"erase", kept(module, "p^self^, any^;"), dictionary_erase},
+        {"keys", kept(module, "f^self^ -> godot.Array;"), dictionary_keys},
+        {"clear", kept(module, "p^self^;"), dictionary_clear},
+        {"dispose", kept(module, "p^self^;"), dictionary_dispose},
+        {"iterate", kept(module, "f^self^ -> c^{p^ -> any^};"),
+         dictionary_iterate},
+    };
+    if (!declare_members(program, module, "Dictionary", members,
+                         sizeof(members) / sizeof(members[0]))) {
+        return false;
+    }
+    return lhat_register_func(program, "godot", "dictionary",
+                              kept(module, "f^ -> godot.Dictionary;"),
+                              make_dictionary_of, module);
+}
+
+// The bare one, which every typed array is declared under.
+BoundContainer bare_array = {"Array", "any^", nullptr, Variant::NIL, nullptr,
+                             nullptr};
+
+}  // namespace
+
+bool register_containers(LhatProgram *program, Godot *module)
+{
+    if (program == nullptr || module == nullptr) {
+        return false;
+    }
+    if (!declare_array(program, module, &bare_array) ||
+        !declare_dictionary(program, module)) {
+        return false;
+    }
+    for (size_t i = 0; i < typed_array_count; i++) {
+        if (!declare_array(program, module, &typed_arrays[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool make_array(LhatMachine *machine, const Godot *module, const Array &from,
+                LhatValue *out)
+{
+    if (module == nullptr) {
+        return false;
+    }
+    // What the engine says the elements are is what tells godot.ArrayOfNode
+    // from godot.Array. An element type nothing was generated for reads as
+    // the bare one, which every member still works on.
+    const LhatHostDataTag *tag = module->handle_tags[Variant::ARRAY];
+    if (from.is_typed()) {
+        const LhatHostDataTag *const *found = module->array_tags.getptr(
+            element_key(from.get_typed_builtin(), from.get_typed_class_name()));
+        if (found != nullptr) {
+            tag = *found;
+        }
+    }
+    return answer_array(machine, module, from, tag, out);
+}
+
+bool make_dictionary(LhatMachine *machine, const Godot *module,
+                     const Dictionary &from, LhatValue *out)
+{
+    if (module == nullptr) {
+        return false;
+    }
+    Dictionary *held = memnew(Dictionary(from));
+    if (!lhat_machine_make_hostdata(
+            machine, module->handle_tags[Variant::DICTIONARY], held, out)) {
+        memdelete(held);
+        return false;
+    }
+    return true;
+}
+
+Array *held_array(LhatValue value, const Godot *module)
+{
+    return module != nullptr ? held_array_of(value, module) : nullptr;
+}
+
+Dictionary *held_dictionary(LhatValue value, const Godot *module)
+{
+    return module != nullptr ? held_dictionary_of(value, module) : nullptr;
+}
+
+LhatValue element_answer(LhatMachine *machine, const Godot *module,
+                         const Variant &held)
+{
+    LhatValue out = lhat_nil();
+    switch (held.get_type()) {
+        // A container inside a container stays a container: from_variant
+        // would make a table of it, which is the right answer for an any^
+        // asked of the engine and the wrong one for what a signature calls
+        // godot.Array.
+        case Variant::ARRAY:
+            return make_array(machine, module, (Array)held, &out) ? out
+                                                                  : lhat_nil();
+        case Variant::DICTIONARY:
+            return make_dictionary(machine, module, (Dictionary)held, &out)
+                       ? out
+                       : lhat_nil();
+        default:
+            break;
+    }
+    // 8.9's values, which may be answered outright and may not be written
+    // into an any^ -- so they are asked for before from_variant, which
+    // refuses them for that reason.
+    bool valued = false;
+    LhatValue made = value_of_variant(machine, module, held, &valued);
+    if (valued) {
+        return made;
+    }
+    return from_variant(machine, held, &out, module) ? out : lhat_nil();
+}
+
+}  // namespace host
+}  // namespace godot

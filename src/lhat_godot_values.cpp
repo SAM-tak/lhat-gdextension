@@ -1311,6 +1311,64 @@ bool register_values(LhatProgram *program, Godot *module)
 // What a Packed*Array's elements are handed over as. Written out rather than
 // templated: the four are all there are, and a caller in another translation
 // unit would otherwise need the traits above.
+Variant variant_of_value(LhatValue value, const Godot *module, bool *found)
+{
+    *found = true;
+#define LHAT_GODOT_TAKE(T_)                                                  do {                                                                         T_ held;                                                                 if (taken<T_>(value, module, &held)) {                                       return held;                                                         }                                                                    } while (0)
+    LHAT_GODOT_TAKE(Vector2);
+    LHAT_GODOT_TAKE(Vector2i);
+    LHAT_GODOT_TAKE(Vector3);
+    LHAT_GODOT_TAKE(Vector3i);
+    LHAT_GODOT_TAKE(Vector4);
+    LHAT_GODOT_TAKE(Vector4i);
+    LHAT_GODOT_TAKE(Color);
+    LHAT_GODOT_TAKE(Quaternion);
+    LHAT_GODOT_TAKE(Rect2);
+    LHAT_GODOT_TAKE(Rect2i);
+    LHAT_GODOT_TAKE(AABB);
+    LHAT_GODOT_TAKE(Plane);
+    LHAT_GODOT_TAKE(Transform2D);
+    LHAT_GODOT_TAKE(Basis);
+    LHAT_GODOT_TAKE(Transform3D);
+    LHAT_GODOT_TAKE(Projection);
+    LHAT_GODOT_TAKE(RID);
+#undef LHAT_GODOT_TAKE
+    // 8.9 checks the tag rather than the shape, so a miss here is a value
+    // that is none of ours rather than one of the wrong width.
+    *found = false;
+    return Variant();
+}
+
+LhatValue value_of_variant(LhatMachine *machine, const Godot *module,
+                           const Variant &held, bool *found)
+{
+    *found = true;
+    switch (held.get_type()) {
+#define LHAT_GODOT_ANSWER(T_)                                                case Named<T_>::kind:                                                        return answer<T_>(machine, module, (T_)held)
+        LHAT_GODOT_ANSWER(Vector2);
+        LHAT_GODOT_ANSWER(Vector2i);
+        LHAT_GODOT_ANSWER(Vector3);
+        LHAT_GODOT_ANSWER(Vector3i);
+        LHAT_GODOT_ANSWER(Vector4);
+        LHAT_GODOT_ANSWER(Vector4i);
+        LHAT_GODOT_ANSWER(Color);
+        LHAT_GODOT_ANSWER(Quaternion);
+        LHAT_GODOT_ANSWER(Rect2);
+        LHAT_GODOT_ANSWER(Rect2i);
+        LHAT_GODOT_ANSWER(AABB);
+        LHAT_GODOT_ANSWER(Plane);
+        LHAT_GODOT_ANSWER(Transform2D);
+        LHAT_GODOT_ANSWER(Basis);
+        LHAT_GODOT_ANSWER(Transform3D);
+        LHAT_GODOT_ANSWER(Projection);
+        LHAT_GODOT_ANSWER(RID);
+#undef LHAT_GODOT_ANSWER
+        default:
+            *found = false;
+            return lhat_nil();
+    }
+}
+
 LhatValue value_answer(LhatMachine *machine, const Godot *module,
                        const Vector2 &value)
 {

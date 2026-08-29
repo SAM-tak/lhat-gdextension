@@ -88,6 +88,24 @@ STRINGS = {
 }
 
 
+# The Variant::Type an element is, which is what a typed array is told apart
+# by at run time and what set_typed is handed to make a fresh one. A class is
+# OBJECT and named separately; everything else is one of these.
+VARIANT_KIND = {
+    "int": "INT", "float": "FLOAT", "bool": "BOOL",
+    "String": "STRING", "StringName": "STRING_NAME", "NodePath": "NODE_PATH",
+    "Array": "ARRAY", "Dictionary": "DICTIONARY", "Variant": "NIL",
+}
+
+
+# The L^ name for Array[X]. After the element the ENGINE declares, not after
+# what it resolves to in L^ -- two declarations that resolve alike are still
+# two things the engine can hand back, and the run-time tag is found by what
+# the engine says the elements are.
+def array_named(element):
+    return "ArrayOf" + element[0].upper() + element[1:]
+
+
 def kind_of(spelling, classes, wanted):
     """(kind expression, L^ type) for one engine type, or None when unbound."""
     # 02 の 14.8: one number^ over integers and reals, so an int, a float and
@@ -111,6 +129,21 @@ def kind_of(spelling, classes, wanted):
     if spelling in HOSTDATA:
         return ("LHAT_GD_HOSTDATA + Variant::" + HOSTDATA[spelling],
                 "godot." + spelling)
+    # 05 の 8.8: Godot's Array and Dictionary are handles like the packed
+    # arrays -- neither has a seam a view could go through, so converting
+    # would be the only other road and it costs a Variant per element per
+    # call (lhat_godot_containers.h).
+    if spelling == "Dictionary" or spelling.startswith("typeddictionary::"):
+        return "LHAT_GD_HOSTDATA + Variant::DICTIONARY", "godot.Dictionary"
+    if spelling == "Array":
+        return "LHAT_GD_HOSTDATA + Variant::ARRAY", "godot.Array"
+    if spelling.startswith("typedarray::"):
+        # 8.8改: one type per element, declared under godot.Array. The kind
+        # stays ARRAY -- every one of them answers to the bare tag, which is
+        # the promise a subtype registration makes -- so it is the SIGNATURE
+        # that carries the element type, and the checker that holds it.
+        return ("LHAT_GD_HOSTDATA + Variant::ARRAY",
+                "godot." + array_named(spelling[len("typedarray::"):]))
     if spelling in classes:
         # 8.8改: the class itself where it was registered, and its nearest
         # registered ancestor otherwise -- which is also the tag a value of
@@ -119,7 +152,7 @@ def kind_of(spelling, classes, wanted):
             if step in wanted:
                 return "LHAT_GD_OBJECT", "godot." + step
         return "LHAT_GD_OBJECT", "godot.Object"
-    return None  # Array, Dictionary, typedarray:: -- nothing stands for these
+    return None  # a typed dictionary's key or value, and nothing else
 
 
 def chain(name, classes):
@@ -230,6 +263,7 @@ def selected(classes, api):
 
 def gather(api, classes, wanted, singletons=()):
     rows = []
+    arrays = []
     left_out = 0
     for name in list(wanted) + list(singletons):
         alone = name in singletons
@@ -275,6 +309,11 @@ def gather(api, classes, wanted, singletons=()):
                 sys.exit("%s.%s wants %d built arguments; raise "
                          "LHAT_GD_MAX_BOXED past %d"
                          % (name, method["name"], boxed, MAX_BOXED))
+            for spelling in ([a["type"] for a in arguments] +
+                             ([answered] if answered else [])):
+                if (spelling.startswith("typedarray::") and
+                        spelling not in arrays):
+                    arrays.append(spelling)
             rows.append({
                 "name": method["name"],
                 "signature": signature,
@@ -285,7 +324,7 @@ def gather(api, classes, wanted, singletons=()):
                 "boxed": boxed,
                 "kinds": [kind[0] for kind in kinds],
             })
-    return rows, left_out
+    return rows, arrays, left_out
 
 
 def split_signature(signature, room=68):
@@ -302,7 +341,7 @@ def split_signature(signature, room=68):
     return lines
 
 
-def write(api, classes, wanted, rows, left_out):
+def write(api, classes, wanted, rows, arrays, left_out):
     # The same argument shape recurs -- every setter of a float, every getter
     # of nothing -- so one array is written per distinct shape and shared.
     shapes = {}
@@ -324,16 +363,17 @@ def write(api, classes, wanted, rows, left_out):
     say("//     python scripts/gen-godot-api.py")
     say("//")
     say("// From %s." % api["header"]["version_full_name"])
-    say("// %d classes, %d methods. %d more were left out because an argument"
-        % (len(wanted), len(rows), left_out))
-    say("// or an answer of theirs is an Array, a Dictionary or a typed")
-    say("// array, and nothing stands for those yet.")
+    say("// %d classes, %d methods, %d typed arrays. %d methods were left"
+        % (len(wanted), len(rows), len(arrays), left_out))
+    say("// out because an argument or an answer of theirs is a typed")
+    say("// dictionary's key or value, and nothing stands for those yet.")
     say("")
     say('#include "lhat_godot_api.gen.h"')
     say("")
     say("#include <godot_cpp/godot.hpp>")
     say("#include <godot_cpp/variant/string_name.hpp>")
     say("")
+    say('#include "lhat_godot_containers.h"')
     say('#include "lhat_godot_module.h"')
     say("")
     say("namespace godot {")
@@ -385,6 +425,31 @@ def write(api, classes, wanted, rows, left_out):
     say("};")
     say("")
     say("}  // namespace")
+    say("")
+    say("// 8.8改: one type per element a bound method asks for, each declared")
+    say("// under godot.Array. The element type is the checker's; the tag is")
+    say("// what a value coming back is told apart by, found from what the")
+    say("// engine says its elements are (lhat_godot_containers.cpp).")
+    say("BoundContainer typed_arrays[] = {")
+    for spelling in arrays:
+        element = spelling[len("typedarray::"):]
+        written = kind_of(element, classes, wanted)
+        if written is None:
+            sys.exit("nothing stands for an element of type " + element)
+        if element in classes:
+            kind, named = "OBJECT", '"%s"' % element
+        else:
+            if element not in VARIANT_KIND and element not in HOSTVALUE                     and element not in HOSTDATA:
+                sys.exit("no Variant kind for an element of type " + element)
+            kind = (VARIANT_KIND.get(element) or HOSTVALUE.get(element) or
+                    HOSTDATA.get(element))
+            named = "nullptr"
+        say('    {"%s", "%s", "Array",' % (array_named(element), written[1]))
+        say("     Variant::%s, %s, nullptr}," % (kind, named))
+    say("};")
+    say("")
+    say("const size_t typed_array_count =")
+    say("    sizeof(typed_arrays) / sizeof(typed_arrays[0]);")
     say("")
     say("bool register_godot_classes(LhatProgram *program, Godot *module)")
     say("{")
@@ -556,8 +621,12 @@ def write_docs(api, classes, registered, singletons, rows, dropped=()):
     say("")
     say("メソッド数は「バインド済み / 呼べるもの」。呼べるものからは")
     say("virtual（スクリプトが実装する側）、vararg（ptrcall が無い）、")
-    say("static（レシーバが無い）を除いてある。落ちた分の理由は")
-    say("引数か答えに `Array` / `Dictionary` / 型付き配列があること。")
+    say("static（レシーバが無い）を除いてある。")
+    say("")
+    say("`Array` は `godot.Array`、`Array[X]` は `godot.ArrayOfX`、")
+    say("`Dictionary` は `godot.Dictionary`。どれも変換ではなくハンドルで、")
+    say("要素は読んだときだけ渡る。`godot.ArrayOfX` は `godot.Array` の下に")
+    say("宣言してあるので、型付きは型無しの場所に立てる（逆は立てない）。")
     say("")
     say("L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の")
     say("`!` 行で「要らないと決めた」枝。")
@@ -618,8 +687,8 @@ def main():
         api = json.load(source)
     classes = {c["name"]: c for c in api["classes"]}
     wanted, singletons, dropped = selected(classes, api)
-    rows, left_out = gather(api, classes, wanted, singletons)
-    write(api, classes, wanted, rows, left_out)
+    rows, arrays, left_out = gather(api, classes, wanted, singletons)
+    write(api, classes, wanted, rows, arrays, left_out)
     write_docs(api, classes, wanted, singletons, rows, dropped)
 
 
