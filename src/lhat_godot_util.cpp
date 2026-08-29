@@ -34,6 +34,17 @@ String said(const LhatValue *arguments, size_t count)
     return line;
 }
 
+// 02 の 14.8: one number^ over integers and reals, so which one arrives is
+// what it was made as and either is read the same way here.
+double number_at(const LhatValue *arguments, size_t count, size_t at)
+{
+    if (at >= count) {
+        return 0.0;
+    }
+    return lhat_is_integer(arguments[at]) ? (double)lhat_as_integer(arguments[at])
+                                          : lhat_as_real(arguments[at]);
+}
+
 // ---------------------------------------------------------------------------
 // 04 の 11.6改 has its own way of saying a run went wrong, and this is not
 // that: these two put a line in the editor's own output, where a script's
@@ -141,15 +152,6 @@ void util_bytes_to_var(LhatMachine *machine, void *context,
 // is what makes a run repeat. std.random is L^'s own and has no part in this
 // one; which of the two a program wants is which of the two it draws from.
 
-double number_at(const LhatValue *arguments, size_t count, size_t at)
-{
-    if (at >= count) {
-        return 0.0;
-    }
-    return lhat_is_integer(arguments[at]) ? (double)lhat_as_integer(arguments[at])
-                                          : lhat_as_real(arguments[at]);
-}
-
 void util_randomize(LhatMachine *machine, void *context,
                     const LhatValue *arguments, size_t count,
                     LhatValue *answers, int *answer_count)
@@ -244,6 +246,152 @@ void util_rand_from_seed(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
+// ---------------------------------------------------------------------------
+// 78 of the 114 are mathematics, and every one of them is here rather than in
+// std.math -- which this host registers none of. One reason settles it:
+// std.math works in DEGREES and Godot works in radians, and the engine's own
+// 139 angle-carrying methods cannot be converted, since extension_api.json
+// says nothing about what a float means. Two conventions in one expression is
+// worse than either, so the engine's is the one, and sin(x) here takes what
+// set_rotation takes.
+//
+// The eleven that take or answer a Variant are left out: abs, min, max, clamp,
+// sign, lerp, snapped, wrap, round, floor and ceil each have an f and an i of
+// their own, which say outright what the Variant one would have decided by
+// looking. 02 の 14.8 makes both number^ to a script either way.
+
+template <double (*Fn)(double)>
+void real_of_real(LhatMachine *machine, void *context,
+             const LhatValue *arguments, size_t count,
+             LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_real(Fn(number_at(arguments, count, 0)));
+    *answer_count = 1;
+}
+
+template <double (*Fn)(double, double)>
+void real_of_2(LhatMachine *machine, void *context,
+          const LhatValue *arguments, size_t count,
+          LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_real(Fn(number_at(arguments, count, 0), number_at(arguments, count, 1)));
+    *answer_count = 1;
+}
+
+template <double (*Fn)(double, double, double)>
+void real_of_3(LhatMachine *machine, void *context,
+          const LhatValue *arguments, size_t count,
+          LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_real(Fn(number_at(arguments, count, 0), number_at(arguments, count, 1), number_at(arguments, count, 2)));
+    *answer_count = 1;
+}
+
+template <double (*Fn)(double, double, double, double, double)>
+void real_of_5(LhatMachine *machine, void *context,
+          const LhatValue *arguments, size_t count,
+          LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_real(Fn(number_at(arguments, count, 0), number_at(arguments, count, 1), number_at(arguments, count, 2), number_at(arguments, count, 3), number_at(arguments, count, 4)));
+    *answer_count = 1;
+}
+
+template <bool (*Fn)(double)>
+void bool_of_real(LhatMachine *machine, void *context,
+             const LhatValue *arguments, size_t count,
+             LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_bool(Fn(number_at(arguments, count, 0)));
+    *answer_count = 1;
+}
+
+template <int64_t (*Fn)(double)>
+void whole_of_real(LhatMachine *machine, void *context,
+              const LhatValue *arguments, size_t count,
+              LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_integer(Fn(number_at(arguments, count, 0)));
+    *answer_count = 1;
+}
+
+template <int64_t (*Fn)(int64_t)>
+void whole_of_whole(LhatMachine *machine, void *context,
+               const LhatValue *arguments, size_t count,
+               LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_integer(Fn((int64_t)number_at(arguments, count, 0)));
+    *answer_count = 1;
+}
+
+template <int64_t (*Fn)(int64_t, int64_t)>
+void whole_of_2(LhatMachine *machine, void *context,
+           const LhatValue *arguments, size_t count,
+           LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_integer(Fn((int64_t)number_at(arguments, count, 0), (int64_t)number_at(arguments, count, 1)));
+    *answer_count = 1;
+}
+
+template <double (*Fn)(double, double, double, double, double, double, double, double)>
+void real_of_8(LhatMachine *machine, void *context,
+          const LhatValue *arguments, size_t count,
+          LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_real(Fn(number_at(arguments, count, 0), number_at(arguments, count, 1), number_at(arguments, count, 2), number_at(arguments, count, 3), number_at(arguments, count, 4), number_at(arguments, count, 5), number_at(arguments, count, 6), number_at(arguments, count, 7)));
+    *answer_count = 1;
+}
+
+template <int64_t (*Fn)(int64_t, int64_t, int64_t)>
+void whole_of_3(LhatMachine *machine, void *context,
+           const LhatValue *arguments, size_t count,
+           LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_integer(Fn((int64_t)number_at(arguments, count, 0), (int64_t)number_at(arguments, count, 1), (int64_t)number_at(arguments, count, 2)));
+    *answer_count = 1;
+}
+
+template <bool (*Fn)(double, double)>
+void bool_of_2(LhatMachine *machine, void *context,
+          const LhatValue *arguments, size_t count,
+          LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_bool(Fn(number_at(arguments, count, 0), number_at(arguments, count, 1)));
+    *answer_count = 1;
+}
+
+template <int64_t (*Fn)(double, int64_t)>
+void whole_of_real_whole(LhatMachine *machine, void *context,
+                    const LhatValue *arguments, size_t count,
+                    LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    answers[0] = lhat_integer(Fn(number_at(arguments, count, 0), (int64_t)number_at(arguments, count, 1)));
+    *answer_count = 1;
+}
+
 }  // namespace
 
 bool register_util(LhatProgram *program, Godot *module)
@@ -278,6 +426,141 @@ bool register_util(LhatProgram *program, Godot *module)
         {"randfn", "f^number^, number^ -> number^;", util_randfn},
         {"rand_from_seed", "f^number^ -> godot.PackedInt64Array;",
          util_rand_from_seed},
+
+        {"absf", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::absf>},
+        {"acos", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::acos>},
+        {"acosh", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::acosh>},
+        {"asin", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::asin>},
+        {"asinh", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::asinh>},
+        {"atan", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::atan>},
+        {"atanh", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::atanh>},
+        {"ceilf", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::ceilf>},
+        {"cos", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::cos>},
+        {"cosh", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::cosh>},
+        {"db_to_linear", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::db_to_linear>},
+        {"deg_to_rad", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::deg_to_rad>},
+        {"exp", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::exp>},
+        {"floorf", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::floorf>},
+        {"linear_to_db", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::linear_to_db>},
+        {"log", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::log>},
+        {"rad_to_deg", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::rad_to_deg>},
+        {"roundf", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::roundf>},
+        {"signf", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::signf>},
+        {"sin", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::sin>},
+        {"sinh", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::sinh>},
+        {"sqrt", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::sqrt>},
+        {"tan", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::tan>},
+        {"tanh", "f^number^ -> number^;",
+         real_of_real<UtilityFunctions::tanh>},
+        {"angle_difference", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::angle_difference>},
+        {"atan2", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::atan2>},
+        {"ease", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::ease>},
+        {"fmod", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::fmod>},
+        {"fposmod", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::fposmod>},
+        {"maxf", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::maxf>},
+        {"minf", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::minf>},
+        {"pingpong", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::pingpong>},
+        {"pow", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::pow>},
+        {"snappedf", "f^number^, number^ -> number^;",
+         real_of_2<UtilityFunctions::snappedf>},
+        {"clampf", "f^number^, number^, number^ -> number^;",
+         real_of_3<UtilityFunctions::clampf>},
+        {"inverse_lerp", "f^number^, number^, number^ -> number^;",
+         real_of_3<UtilityFunctions::inverse_lerp>},
+        {"lerp_angle", "f^number^, number^, number^ -> number^;",
+         real_of_3<UtilityFunctions::lerp_angle>},
+        {"lerpf", "f^number^, number^, number^ -> number^;",
+         real_of_3<UtilityFunctions::lerpf>},
+        {"move_toward", "f^number^, number^, number^ -> number^;",
+         real_of_3<UtilityFunctions::move_toward>},
+        {"rotate_toward", "f^number^, number^, number^ -> number^;",
+         real_of_3<UtilityFunctions::rotate_toward>},
+        {"smoothstep", "f^number^, number^, number^ -> number^;",
+         real_of_3<UtilityFunctions::smoothstep>},
+        {"wrapf", "f^number^, number^, number^ -> number^;",
+         real_of_3<UtilityFunctions::wrapf>},
+        {"bezier_derivative", "f^number^, number^, number^, number^, number^ -> number^;",
+         real_of_5<UtilityFunctions::bezier_derivative>},
+        {"bezier_interpolate", "f^number^, number^, number^, number^, number^ -> number^;",
+         real_of_5<UtilityFunctions::bezier_interpolate>},
+        {"cubic_interpolate", "f^number^, number^, number^, number^, number^ -> number^;",
+         real_of_5<UtilityFunctions::cubic_interpolate>},
+        {"cubic_interpolate_angle", "f^number^, number^, number^, number^, number^ -> number^;",
+         real_of_5<UtilityFunctions::cubic_interpolate_angle>},
+        {"remap", "f^number^, number^, number^, number^, number^ -> number^;",
+         real_of_5<UtilityFunctions::remap>},
+        {"is_finite", "f^number^ -> bool^;",
+         bool_of_real<UtilityFunctions::is_finite>},
+        {"is_inf", "f^number^ -> bool^;",
+         bool_of_real<UtilityFunctions::is_inf>},
+        {"is_nan", "f^number^ -> bool^;",
+         bool_of_real<UtilityFunctions::is_nan>},
+        {"is_zero_approx", "f^number^ -> bool^;",
+         bool_of_real<UtilityFunctions::is_zero_approx>},
+        {"ceili", "f^number^ -> number^;",
+         whole_of_real<UtilityFunctions::ceili>},
+        {"floori", "f^number^ -> number^;",
+         whole_of_real<UtilityFunctions::floori>},
+        {"roundi", "f^number^ -> number^;",
+         whole_of_real<UtilityFunctions::roundi>},
+        {"step_decimals", "f^number^ -> number^;",
+         whole_of_real<UtilityFunctions::step_decimals>},
+        {"absi", "f^number^ -> number^;",
+         whole_of_whole<UtilityFunctions::absi>},
+        {"nearest_po2", "f^number^ -> number^;",
+         whole_of_whole<UtilityFunctions::nearest_po2>},
+        {"signi", "f^number^ -> number^;",
+         whole_of_whole<UtilityFunctions::signi>},
+        {"maxi", "f^number^, number^ -> number^;",
+         whole_of_2<UtilityFunctions::maxi>},
+        {"mini", "f^number^, number^ -> number^;",
+         whole_of_2<UtilityFunctions::mini>},
+        {"posmod", "f^number^, number^ -> number^;",
+         whole_of_2<UtilityFunctions::posmod>},
+        {"cubic_interpolate_angle_in_time", "f^number^, number^, number^, number^, number^, number^, number^, number^ -> number^;",
+         real_of_8<UtilityFunctions::cubic_interpolate_angle_in_time>},
+        {"cubic_interpolate_in_time", "f^number^, number^, number^, number^, number^, number^, number^, number^ -> number^;",
+         real_of_8<UtilityFunctions::cubic_interpolate_in_time>},
+        {"clampi", "f^number^, number^, number^ -> number^;",
+         whole_of_3<UtilityFunctions::clampi>},
+        {"wrapi", "f^number^, number^, number^ -> number^;",
+         whole_of_3<UtilityFunctions::wrapi>},
+        {"is_equal_approx", "f^number^, number^ -> bool^;",
+         bool_of_2<UtilityFunctions::is_equal_approx>},
+        {"snappedi", "f^number^, number^ -> number^;",
+         whole_of_real_whole<UtilityFunctions::snappedi>},
     };
     for (const auto &one : every) {
         if (!lhat_register_func(program, "godot", one.name, one.signature,
