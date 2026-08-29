@@ -6,8 +6,8 @@
 `python scripts/gen-godot-api.py` で増える。
 
 - エンジンのクラス: **971**
-- L^ に登録済み: **705**（うち singleton 36）
-- バインドされたメソッド: **11782**
+- L^ に登録済み: **713**（うち singleton 36）
+- バインドされたメソッド: **11882**
 
 メソッド数は「バインド済み / 呼べるもの」。呼べるものからは
 virtual（スクリプトが実装する側）、vararg（ptrcall が無い）、
@@ -724,15 +724,15 @@ L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の
 | `PacketPeerUDP` | `PacketPeer` | — | 0 / 13 | — |
 | `PhysicsDirectBodyState2D` | `Object` | ○ | 48 / 48 | `godot.PhysicsDirectBodyState2D` |
 | `PhysicsDirectBodyState3D` | `Object` | ○ | 50 / 50 | `godot.PhysicsDirectBodyState3D` |
-| `PhysicsDirectSpaceState2D` | `Object` | — | 0 / 6 | — |
-| `PhysicsDirectSpaceState3D` | `Object` | — | 0 / 6 | — |
-| `PhysicsPointQueryParameters2D` | `RefCounted` | — | 0 / 12 | — |
-| `PhysicsPointQueryParameters3D` | `RefCounted` | — | 0 / 10 | — |
-| `PhysicsRayQueryParameters2D` | `RefCounted` | — | 0 / 14 | — |
-| `PhysicsRayQueryParameters3D` | `RefCounted` | — | 0 / 16 | — |
+| `PhysicsDirectSpaceState2D` | `Object` | ○ | 6 / 6 | `godot.PhysicsDirectSpaceState2D` |
+| `PhysicsDirectSpaceState3D` | `Object` | ○ | 6 / 6 | `godot.PhysicsDirectSpaceState3D` |
+| `PhysicsPointQueryParameters2D` | `RefCounted` | ○ | 12 / 12 | `godot.PhysicsPointQueryParameters2D` |
+| `PhysicsPointQueryParameters3D` | `RefCounted` | ○ | 10 / 10 | `godot.PhysicsPointQueryParameters3D` |
+| `PhysicsRayQueryParameters2D` | `RefCounted` | ○ | 14 / 14 | `godot.PhysicsRayQueryParameters2D` |
+| `PhysicsRayQueryParameters3D` | `RefCounted` | ○ | 16 / 16 | `godot.PhysicsRayQueryParameters3D` |
 | `PhysicsServer3DRenderingServerHandler` | `Object` | — | 0 / 3 | — |
-| `PhysicsShapeQueryParameters2D` | `RefCounted` | — | 0 / 18 | — |
-| `PhysicsShapeQueryParameters3D` | `RefCounted` | — | 0 / 18 | — |
+| `PhysicsShapeQueryParameters2D` | `RefCounted` | ○ | 18 / 18 | `godot.PhysicsShapeQueryParameters2D` |
+| `PhysicsShapeQueryParameters3D` | `RefCounted` | ○ | 18 / 18 | `godot.PhysicsShapeQueryParameters3D` |
 | `PhysicsTestMotionParameters2D` | `RefCounted` | — | 0 / 14 | — |
 | `PhysicsTestMotionParameters3D` | `RefCounted` | — | 0 / 16 | — |
 | `PhysicsTestMotionResult2D` | `RefCounted` | — | 0 / 13 | — |

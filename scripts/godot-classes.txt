@@ -66,6 +66,23 @@ PhysicsDirectBodyState3D
 TreeItem
 TileData
 
+# Raycasting. Held back until godot.Dictionary existed -- five of the six
+# methods answer or take one, so binding the space state before that would
+# have given a type nobody could write a query with.
+#
+# The parameters come too, and have to be named: they are RefCounted rather
+# than Resource, so `under Resource` never reached them. A script makes one
+# with godot.ClassDB.instantiate, which is how anything not a Node or a
+# Resource is made from here.
+PhysicsDirectSpaceState2D
+PhysicsDirectSpaceState3D
+PhysicsPointQueryParameters2D
+PhysicsPointQueryParameters3D
+PhysicsRayQueryParameters2D
+PhysicsRayQueryParameters3D
+PhysicsShapeQueryParameters2D
+PhysicsShapeQueryParameters3D
+
 singletons
 
 # OpenXR reaches L^ half-way. These two are not instantiable and came in only

@@ -87,12 +87,18 @@ bool make_dictionary(LhatMachine *machine, const Godot *module,
 Array *held_array(LhatValue value, const Godot *module);
 Dictionary *held_dictionary(LhatValue value, const Godot *module);
 
-// One element across the seam. Everything from_variant answers, and a
-// handle rather than a table where the element is itself an Array or a
-// Dictionary -- so what `at` gives back has the type the signature promised.
-// 8.9's values answer as themselves, which a direct answer may do and an
-// any^ may not.
-LhatValue element_answer(LhatMachine *machine, const Godot *module,
+// One element across the seam, as the container `what` says its elements
+// are. Everything from_variant answers, and a handle rather than a table
+// where the element is itself an Array or a Dictionary -- so what `at` gives
+// back has the type the signature promised.
+//
+// 8.9's values answer as themselves ONLY where the signature names the type.
+// A container whose element is any^ -- the bare Array, every Dictionary --
+// cannot carry one at all: 8.9 bars a value from anything that outlives a
+// frame, and a host has no way to box one (box^ is the spelling that makes
+// one, and the heap is the machine's). Such an element answers nothing,
+// which is what from_variant has always done with a Vector2.
+LhatValue element_answer(LhatMachine *machine, const BoundContainer *what,
                          const Variant &held);
 
 }  // namespace host
