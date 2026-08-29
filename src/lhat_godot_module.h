@@ -113,6 +113,11 @@ enum {
     LHAT_GD_NODEPATH,
     LHAT_GD_OBJECT,
     LHAT_GD_VARIANT,
+    // An object the engine handed over a reference to, which is every method
+    // declared to answer a RefCounted. Only ever an answer -- an argument of
+    // that type crosses as LHAT_GD_OBJECT, since PtrToArg<Ref<T>>::convert
+    // reads a bare pointer and takes a count of its own.
+    LHAT_GD_REFCOUNTED,
     // The two that carry a Variant::Type in the low bits: one says which
     // value type's bytes these are (8.9), the other which handle it is
     // (a Callable, a Signal, one of the ten packed arrays).
@@ -198,8 +203,12 @@ void dispose_godot();
 // answers to (8.8改), or the one standing for nothing when it is NULL. False
 // only when the machine ran out of memory.
 //
+// `adopt` is for a caller that already holds a reference to a RefCounted and
+// is handing it over rather than lending it -- what a ptrcall answering a
+// Ref<T> leaves behind. Without it the handle takes a second count and the
+// first is never given back.
 bool make_object(LhatMachine *machine, const Godot *module, Object *object,
-                 LhatValue *out);
+                 LhatValue *out, bool adopt = false);
 
 // The object such a value stands for, or NULL when the value is not one of
 // ours, stands for nothing, or names something already freed. Any of the

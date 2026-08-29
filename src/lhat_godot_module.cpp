@@ -532,7 +532,15 @@ LhatValue answered(LhatMachine *machine, const BoundMethod *method,
                 bind, owner, slots, &back);
             return text_answer(machine, String(back));
         }
-        case LHAT_GD_OBJECT: {
+        // A method declared to answer a RefCounted answers a Ref<T>, and
+        // PtrToArg<Ref<T>>::encode assigns into what it takes for one -- so
+        // the count comes back raised by one and that one is ours to hand on.
+        // A method declared to answer a plain Object raises nothing, which is
+        // why the two are told apart at generation and not by looking at what
+        // came back: giving a count back that was never taken frees an object
+        // somebody else is still holding.
+        case LHAT_GD_OBJECT:
+        case LHAT_GD_REFCOUNTED: {
             GodotObject *back = nullptr;
             internal::gdextension_interface_object_method_bind_ptrcall(
                 bind, owner, slots, &back);
@@ -545,7 +553,8 @@ LhatValue answered(LhatMachine *machine, const BoundMethod *method,
                           internal::get_object_instance_binding(back))
                     : nullptr;
             LhatValue made = lhat_nil();
-            make_object(machine, module, given, &made);
+            make_object(machine, module, given, &made,
+                        method->answer == LHAT_GD_REFCOUNTED);
             return made;
         }
         case LHAT_GD_VARIANT: {
@@ -843,7 +852,7 @@ const LhatHostDataTag *tag_for(const Godot *module, Object *object)
 }
 
 bool make_object(LhatMachine *machine, const Godot *module, Object *object,
-                 LhatValue *out)
+                 LhatValue *out, bool adopt)
 {
     if (module == nullptr) {
         return false;
@@ -855,7 +864,14 @@ bool make_object(LhatMachine *machine, const Godot *module, Object *object,
         // Node belongs to the tree and is not held here on purpose.
         RefCounted *counted = Object::cast_to<RefCounted>(object);
         if (counted != nullptr) {
-            handle->hold = Ref<RefCounted>(counted);
+            // A caller that is handing a count over rather than lending the
+            // object gets it taken rather than added to. Ref's own pointer
+            // constructor calls init_ref, which raises the count -- right
+            // for a lender, one too many for a ptrcall's answer, which
+            // arrived with a count already raised for us.
+            handle->hold =
+                adopt ? Ref<RefCounted>::_gde_internal_constructor(counted)
+                      : Ref<RefCounted>(counted);
         }
     }
     if (!lhat_machine_make_hostdata(machine, tag_for(module, object), handle,

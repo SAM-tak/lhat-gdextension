@@ -248,6 +248,19 @@ def gather(api, classes, wanted, singletons=()):
             if answer is None or any(kind is None for kind in kinds):
                 left_out += 1
                 continue
+            # A method declared to answer a RefCounted answers a Ref<T>, and
+            # PtrToArg<Ref<T>>::encode assigns into what it takes for one --
+            # so the count comes back raised by one and that one is the
+            # caller's. Which is godot-cpp's own rule: binding_generator.py
+            # branches on is_refcounted(return_type) and reaches for
+            # Ref::_gde_internal_constructor there and nowhere else.
+            #
+            # The DECLARED type settles it. A method declared to answer a
+            # plain Object raises nothing, so reading the answer's own class
+            # at run time would give a count back that was never taken.
+            if (answer[0] == "LHAT_GD_OBJECT" and answered in classes and
+                    classes[answered].get("is_refcounted")):
+                answer = ("LHAT_GD_REFCOUNTED", answer[1])
             # 14.4: a first parameter written self^ is the receiver, and a
             # call passes what stands before the dot there without writing
             # it. A singleton's method has no receiver to write.
