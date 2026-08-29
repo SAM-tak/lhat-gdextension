@@ -17,6 +17,11 @@
 #
 # `singleton <Name>` takes one.
 #
+# `!<Class>` drops that class and everything under it. Whole branches rather
+# than single classes, so what is left is always a tree: nothing can end up
+# declared under something that is no longer there. Applied after every other
+# line, so where a `!` is written does not matter.
+#
 # What this list costs is registration and the size of lhat-host.json, not
 # checking: 05 の 8.8改 makes a base a link rather than a copy of a member
 # list, so the checker's side is per class rather than per member. And it
@@ -35,4 +40,42 @@ under SceneTree
 # get_texture, a PackedScene to instantiate, an InputEvent in _input.
 under Resource
 
+# The rest of what a bound method hands back and the script then cannot use.
+# Nothing here needs an ancestor that is not already in: RefCounted came
+# along with Resource, and these hang off it or off Object.
+#
+# A tween is written as a chain -- create_tween().tween_property(...)
+# .set_ease(...) -- so the Tweener a step answers with is as much a part of
+# it as Tween itself.
+Tween
+Tweener
+PropertyTweener
+MethodTweener
+CallbackTweener
+IntervalTweener
+SubtweenTweener
+SceneTreeTimer
+
+# What move_and_collide answers, and what _integrate_forces is handed.
+KinematicCollision2D
+KinematicCollision3D
+PhysicsDirectBodyState2D
+PhysicsDirectBodyState3D
+
+# A Tree's rows, and a TileMapLayer's per-tile data.
+TreeItem
+TileData
+
 singletons
+
+# OpenXR reaches L^ half-way. These two are not instantiable and came in only
+# as the ancestors of Resources `under Resource` reached, and what they are
+# for -- OpenXRAPIExtension, OpenXRInterface -- is not here, so nothing can be
+# done with what did arrive. Half a subsystem reads as a supported one, which
+# is worse than none.
+#
+# The OpenXR *nodes* stay: OpenXRHand, OpenXRCompositionLayerQuad and the
+# rest are what the editor offers as a script's parent, which is exactly what
+# `under Node` is for.
+!OpenXRBindingModifier
+!OpenXRHapticBase

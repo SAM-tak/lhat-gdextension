@@ -6,13 +6,16 @@
 `python scripts/gen-godot-api.py` で増える。
 
 - エンジンのクラス: **971**
-- L^ に登録済み: **698**（うち singleton 36）
-- バインドされたメソッド: **11132**
+- L^ に登録済み: **705**（うち singleton 36）
+- バインドされたメソッド: **11432**
 
 メソッド数は「バインド済み / 呼べるもの」。呼べるものからは
 virtual（スクリプトが実装する側）、vararg（ptrcall が無い）、
 static（レシーバが無い）を除いてある。落ちた分の理由は
 引数か答えに `Array` / `Dictionary` / 型付き配列があること。
+
+L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の
+`!` 行で「要らないと決めた」枝。
 
 ## スクリプトが着られるクラス
 
@@ -322,18 +325,18 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `OggPacketSequence` | `Resource` | ○ | 5 / 7 | `godot.OggPacketSequence` |
 | `OmniLight3D` | `Light3D` | ○ | 2 / 2 | `godot.OmniLight3D` |
 | `OpenXRAction` | `Resource` | ○ | 6 / 6 | `godot.OpenXRAction` |
-| `OpenXRActionBindingModifier` | `OpenXRBindingModifier` | ○ | 0 / 0 | `godot.OpenXRActionBindingModifier` |
+| `OpenXRActionBindingModifier` | `OpenXRBindingModifier` | 除外 | 0 / 0 | — |
 | `OpenXRActionMap` | `Resource` | ○ | 11 / 15 | `godot.OpenXRActionMap` |
 | `OpenXRActionSet` | `Resource` | ○ | 7 / 9 | `godot.OpenXRActionSet` |
-| `OpenXRAnalogThresholdModifier` | `OpenXRActionBindingModifier` | ○ | 8 / 8 | `godot.OpenXRAnalogThresholdModifier` |
+| `OpenXRAnalogThresholdModifier` | `OpenXRActionBindingModifier` | 除外 | 0 / 8 | — |
 | `OpenXRCompositionLayerCylinder` | `OpenXRCompositionLayer` | ○ | 8 / 8 | `godot.OpenXRCompositionLayerCylinder` |
 | `OpenXRCompositionLayerEquirect` | `OpenXRCompositionLayer` | ○ | 10 / 10 | `godot.OpenXRCompositionLayerEquirect` |
 | `OpenXRCompositionLayerQuad` | `OpenXRCompositionLayer` | ○ | 2 / 2 | `godot.OpenXRCompositionLayerQuad` |
-| `OpenXRDpadBindingModifier` | `OpenXRIPBindingModifier` | ○ | 18 / 18 | `godot.OpenXRDpadBindingModifier` |
+| `OpenXRDpadBindingModifier` | `OpenXRIPBindingModifier` | 除外 | 0 / 18 | — |
 | `OpenXRHand` | `Node3D` | ○ | 10 / 10 | `godot.OpenXRHand` |
-| `OpenXRHapticVibration` | `OpenXRHapticBase` | ○ | 6 / 6 | `godot.OpenXRHapticVibration` |
+| `OpenXRHapticVibration` | `OpenXRHapticBase` | 除外 | 0 / 6 | — |
 | `OpenXRIPBinding` | `Resource` | ○ | 12 / 14 | `godot.OpenXRIPBinding` |
-| `OpenXRIPBindingModifier` | `OpenXRBindingModifier` | ○ | 0 / 0 | `godot.OpenXRIPBindingModifier` |
+| `OpenXRIPBindingModifier` | `OpenXRBindingModifier` | 除外 | 0 / 0 | — |
 | `OpenXRInteractionProfile` | `Resource` | ○ | 6 / 10 | `godot.OpenXRInteractionProfile` |
 | `OpenXRRenderModel` | `Node3D` | ○ | 3 / 3 | `godot.OpenXRRenderModel` |
 | `OpenXRRenderModelManager` | `Node3D` | ○ | 4 / 4 | `godot.OpenXRRenderModelManager` |
@@ -639,7 +642,7 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `AudioSample` | `RefCounted` | — | 0 / 0 | — |
 | `AudioSamplePlayback` | `RefCounted` | — | 0 / 0 | — |
 | `AudioStreamPlayback` | `RefCounted` | — | 0 / 9 | — |
-| `CallbackTweener` | `Tweener` | — | 0 / 1 | — |
+| `CallbackTweener` | `Tweener` | ○ | 1 / 1 | `godot.CallbackTweener` |
 | `CameraFeed` | `RefCounted` | — | 0 / 16 | — |
 | `CanvasItem` | `Node` | ○ | 89 / 89 | `godot.CanvasItem` |
 | `CharFXTransform` | `RefCounted` | — | 0 / 26 | — |
@@ -685,18 +688,18 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `Font` | `Resource` | ○ | 26 / 34 | `godot.Font` |
 | `GLTFObjectModelProperty` | `RefCounted` | — | 0 / 18 | — |
 | `InputEvent` | `Resource` | ○ | 15 / 15 | `godot.InputEvent` |
-| `IntervalTweener` | `Tweener` | — | 0 / 0 | — |
+| `IntervalTweener` | `Tweener` | ○ | 0 / 0 | `godot.IntervalTweener` |
 | `JavaClass` | `RefCounted` | — | 0 / 3 | — |
 | `JavaObject` | `RefCounted` | — | 0 / 1 | — |
 | `JavaScriptObject` | `RefCounted` | — | 0 / 0 | — |
 | `Joint2D` | `Node2D` | ○ | 9 / 9 | `godot.Joint2D` |
-| `KinematicCollision2D` | `RefCounted` | — | 0 / 13 | — |
-| `KinematicCollision3D` | `RefCounted` | — | 0 / 14 | — |
+| `KinematicCollision2D` | `RefCounted` | ○ | 13 / 13 | `godot.KinematicCollision2D` |
+| `KinematicCollision3D` | `RefCounted` | ○ | 14 / 14 | `godot.KinematicCollision3D` |
 | `Light3D` | `VisualInstance3D` | ○ | 31 / 31 | `godot.Light3D` |
 | `Logger` | `RefCounted` | — | 0 / 0 | — |
 | `MainLoop` | `Object` | ○ | 0 / 0 | `godot.MainLoop` |
 | `MeshConvexDecompositionSettings` | `RefCounted` | — | 0 / 26 | — |
-| `MethodTweener` | `Tweener` | — | 0 / 3 | — |
+| `MethodTweener` | `Tweener` | ○ | 3 / 3 | `godot.MethodTweener` |
 | `MovieWriter` | `Object` | — | 0 / 0 | — |
 | `MultiplayerAPI` | `RefCounted` | — | 0 / 11 | — |
 | `MultiplayerPeer` | `PacketPeer` | — | 0 / 17 | — |
@@ -709,14 +712,14 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `Object` | `—` | ○ | 38 / 46 | `godot.Object` |
 | `Occluder3D` | `Resource` | ○ | 2 / 2 | `godot.Occluder3D` |
 | `OpenXRAPIExtension` | `RefCounted` | — | 0 / 44 | — |
-| `OpenXRBindingModifier` | `Resource` | ○ | 0 / 0 | `godot.OpenXRBindingModifier` |
+| `OpenXRBindingModifier` | `Resource` | 除外 | 0 / 0 | — |
 | `OpenXRExtensionWrapper` | `Object` | — | 0 / 2 | — |
 | `OpenXRFutureResult` | `RefCounted` | — | 0 / 5 | — |
-| `OpenXRHapticBase` | `Resource` | ○ | 0 / 0 | `godot.OpenXRHapticBase` |
+| `OpenXRHapticBase` | `Resource` | 除外 | 0 / 0 | — |
 | `PacketPeerDTLS` | `PacketPeer` | — | 0 / 4 | — |
 | `PacketPeerUDP` | `PacketPeer` | — | 0 / 13 | — |
-| `PhysicsDirectBodyState2D` | `Object` | — | 0 / 48 | — |
-| `PhysicsDirectBodyState3D` | `Object` | — | 0 / 50 | — |
+| `PhysicsDirectBodyState2D` | `Object` | ○ | 48 / 48 | `godot.PhysicsDirectBodyState2D` |
+| `PhysicsDirectBodyState3D` | `Object` | ○ | 50 / 50 | `godot.PhysicsDirectBodyState3D` |
 | `PhysicsDirectSpaceState2D` | `Object` | — | 0 / 6 | — |
 | `PhysicsDirectSpaceState3D` | `Object` | — | 0 / 6 | — |
 | `PhysicsPointQueryParameters2D` | `RefCounted` | — | 0 / 12 | — |
@@ -730,7 +733,7 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `PhysicsTestMotionParameters3D` | `RefCounted` | — | 0 / 16 | — |
 | `PhysicsTestMotionResult2D` | `RefCounted` | — | 0 / 13 | — |
 | `PhysicsTestMotionResult3D` | `RefCounted` | — | 0 / 14 | — |
-| `PropertyTweener` | `Tweener` | — | 0 / 7 | — |
+| `PropertyTweener` | `Tweener` | ○ | 7 / 7 | `godot.PropertyTweener` |
 | `RDPipelineColorBlendState` | `RefCounted` | — | 0 / 8 | — |
 | `RDPipelineDepthStencilState` | `RefCounted` | — | 0 / 42 | — |
 | `RDPipelineMultisampleState` | `RefCounted` | — | 0 / 12 | — |
@@ -750,7 +753,7 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `ResourceFormatSaver` | `RefCounted` | — | 0 / 0 | — |
 | `SceneState` | `RefCounted` | — | 0 / 23 | — |
 | `SceneTree` | `MainLoop` | ○ | 42 / 44 | `godot.SceneTree` |
-| `SceneTreeTimer` | `RefCounted` | — | 0 / 2 | — |
+| `SceneTreeTimer` | `RefCounted` | ○ | 2 / 2 | `godot.SceneTreeTimer` |
 | `Script` | `Resource` | ○ | 14 / 18 | `godot.Script` |
 | `ScriptCreateDialog` | `ConfirmationDialog` | — | 0 / 1 | — |
 | `ScriptEditor` | `PanelContainer` | — | 0 / 12 | — |
@@ -762,15 +765,15 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `StreamPeer` | `RefCounted` | — | 0 / 35 | — |
 | `StreamPeerBuffer` | `StreamPeer` | — | 0 / 8 | — |
 | `StreamPeerTCP` | `StreamPeer` | — | 0 / 9 | — |
-| `SubtweenTweener` | `Tweener` | — | 0 / 1 | — |
+| `SubtweenTweener` | `Tweener` | ○ | 1 / 1 | `godot.SubtweenTweener` |
 | `TLSOptions` | `RefCounted` | — | 0 / 6 | — |
 | `TextServer` | `RefCounted` | — | 0 / 233 | — |
-| `TileData` | `Object` | — | 0 / 54 | — |
+| `TileData` | `Object` | ○ | 54 / 54 | `godot.TileData` |
 | `TileSetSource` | `Resource` | ○ | 6 / 6 | `godot.TileSetSource` |
 | `TranslationDomain` | `RefCounted` | — | 0 / 29 | — |
-| `TreeItem` | `Object` | — | 0 / 118 | — |
+| `TreeItem` | `Object` | ○ | 114 / 118 | `godot.TreeItem` |
 | `TriangleMesh` | `RefCounted` | — | 0 / 4 | — |
-| `Tween` | `RefCounted` | — | 0 / 25 | — |
+| `Tween` | `RefCounted` | ○ | 25 / 25 | `godot.Tween` |
 | `UPNPDevice` | `RefCounted` | — | 0 / 16 | — |
 | `UndoRedo` | `Object` | — | 0 / 23 | — |
 | `Viewport` | `Node` | ○ | 127 / 128 | `godot.Viewport` |
@@ -974,7 +977,7 @@ static（レシーバが無い）を除いてある。落ちた分の理由は
 | `Thread` | `RefCounted` | — | 0 / 5 | — |
 | `Time` | `Object` | ○ | 11 / 21 | `godot.Time.<method>()` |
 | `TranslationServer` | `Object` | ○ | 26 / 26 | `godot.TranslationServer.<method>()` |
-| `Tweener` | `RefCounted` | — | 0 / 0 | — |
+| `Tweener` | `RefCounted` | ○ | 0 / 0 | `godot.Tweener` |
 | `UDPServer` | `RefCounted` | — | 0 / 9 | — |
 | `UPNP` | `RefCounted` | — | 0 / 17 | — |
 | `UniformSetCacheRD` | `Object` | — | 0 / 0 | — |

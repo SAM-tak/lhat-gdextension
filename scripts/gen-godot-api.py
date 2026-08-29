@@ -144,14 +144,25 @@ def offerable(name, classes):
 
 
 def selected(classes, api):
-    """(classes to register, singletons), in the order the list names them.
+    """(classes to register, singletons, what `!` dropped).
 
-    Nothing here is split into files any more: 05 の 8.8改 put the engine's
-    tree on the host side, so what a script writes against is godot.Sprite2D
-    itself and there is no wrapper unit for a register file to run out of.
+    In the order the list names them. Nothing here is split into files any
+    more: 05 の 8.8改 put the engine's tree on the host side, so what a script
+    writes against is godot.Sprite2D itself and there is no wrapper unit for
+    a register file to run out of.
     """
     wanted = []
     singletons = []
+    # `!X` names a branch that is not wanted, and takes everything under X
+    # with it. Whole branches rather than single classes, because a class
+    # dropped out of the middle would leave what is under it declared under
+    # something no longer registered -- and this way that cannot arise, since
+    # anything with X in its chain goes when X does.
+    #
+    # Read here and applied at the end: `under` pulls ancestors up from many
+    # leaves at once, so a rule that depended on where the line sat would not
+    # be readable. A branch is in or it is not.
+    excluded = []
     # 05 の 8.7: a singleton is a class the engine holds one instance of, and
     # a script never has that instance -- GDScript writes the class name and
     # calls through it. So these are not part of the class tree at all: they
@@ -163,6 +174,12 @@ def selected(classes, api):
         for line in source:
             line = line.split("#", 1)[0].strip()
             if not line:
+                continue
+            if line.startswith("!"):
+                named = line[1:].strip()
+                if named not in classes:
+                    sys.exit("no engine class named " + named)
+                excluded.append(named)
                 continue
             if line == "singletons":
                 for name in every_singleton:
@@ -194,7 +211,21 @@ def selected(classes, api):
                 for step in chain(leaf, classes):
                     if step not in wanted:
                         wanted.append(step)
-    return wanted, singletons
+
+    dropped = set()
+    for named in excluded:
+        branch = {n for n in wanted if named in chain(n, classes)}
+        branch |= {n for n in singletons if named in chain(n, classes)}
+        # A `!` that drops nothing is a line left behind by an edit above it,
+        # and the next reader would take it for a branch that is out when it
+        # is a branch that was never in.
+        if not branch:
+            sys.exit("!%s drops nothing -- no line above it reaches %s"
+                     % (named, named))
+        dropped |= branch
+    wanted = [n for n in wanted if n not in dropped]
+    singletons = [n for n in singletons if n not in dropped]
+    return wanted, singletons, dropped
 
 
 def gather(api, classes, wanted, singletons=()):
@@ -465,7 +496,7 @@ def unbound_reason(method, classes, wanted):
     return None
 
 
-def write_docs(api, classes, registered, singletons, rows):
+def write_docs(api, classes, registered, singletons, rows, dropped=()):
     """docs/godot-classes.md: what reaches L^ and what does not."""
     wanted = list(registered) + list(singletons)
     bound = {}
@@ -515,6 +546,9 @@ def write_docs(api, classes, registered, singletons, rows):
     say("static（レシーバが無い）を除いてある。落ちた分の理由は")
     say("引数か答えに `Array` / `Dictionary` / 型付き配列があること。")
     say("")
+    say("L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の")
+    say("`!` 行で「要らないと決めた」枝。")
+    say("")
 
     def section(title, note, names):
         say("## %s" % title)
@@ -534,7 +568,8 @@ def write_docs(api, classes, registered, singletons, rows):
                 else:
                     where = "`godot.%s`" % name
             else:
-                mark = "—"
+                # 「まだ無い」と「要らないと決めた」は別のこと。
+                mark = "除外" if name in dropped else "—"
                 counted = "0 / %d" % reachable
                 where = "—"
             say("| `%s` | `%s` | %s | %s | %s |"
@@ -569,10 +604,10 @@ def main():
     with open(API, encoding="utf-8") as source:
         api = json.load(source)
     classes = {c["name"]: c for c in api["classes"]}
-    wanted, singletons = selected(classes, api)
+    wanted, singletons, dropped = selected(classes, api)
     rows, left_out = gather(api, classes, wanted, singletons)
     write(api, classes, wanted, rows, left_out)
-    write_docs(api, classes, wanted, singletons, rows)
+    write_docs(api, classes, wanted, singletons, rows, dropped)
 
 
 if __name__ == "__main__":
