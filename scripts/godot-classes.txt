@@ -3,9 +3,11 @@
 # One class per line; its whole inheritance chain comes along, so naming a
 # leaf is enough.
 #
-# `under <Class>` takes every class under that one that Godot's own "create a
-# new script" dialog would offer as a parent: the core API, able to be
-# instantiated, exposed to scripting, and not blacklisted there.
+# `under <Class>` takes every class under that one that the engine can make:
+# the core API, able to be instantiated, and not one of the two names Godot's
+# own "create a new script" dialog blacklists. `under Object` is therefore
+# everything -- which is what this list wants, since a class a script can be
+# handed is a class a script should be able to use.
 #
 # `singletons` takes every core singleton -- a class the engine holds one
 # instance of, which a script never has in hand. GDScript writes the class
@@ -20,7 +22,8 @@
 # `!<Class>` drops that class and everything under it. Whole branches rather
 # than single classes, so what is left is always a tree: nothing can end up
 # declared under something that is no longer there. Applied after every other
-# line, so where a `!` is written does not matter.
+# line, so where a `!` is written does not matter. Nothing uses it now; it is
+# here for a branch that turns out to cost more than it is worth.
 #
 # What this list costs is registration and the size of lhat-host.json, not
 # checking: 05 の 8.8改 makes a base a link rather than a copy of a member
@@ -28,71 +31,48 @@
 # costs no L^ at all -- there is no wrapper library, since godot.Sprite2D is
 # a type a script names directly.
 
-# Everything a script can be worn by.
-under Node
-Resource
+# Everything the engine can make, and every ancestor of one. 859 classes.
+under Object
 
-# What get_tree() answers: not a Node and not a Resource, but nothing a
-# script does without.
-under SceneTree
-
-# What a script gets back and has to be able to use: a Texture2D off
-# get_texture, a PackedScene to instantiate, an InputEvent in _input.
-under Resource
-
-# The rest of what a bound method hands back and the script then cannot use.
-# Nothing here needs an ancestor that is not already in: RefCounted came
-# along with Resource, and these hang off it or off Object.
-#
-# A tween is written as a chain -- create_tween().tween_property(...)
-# .set_ease(...) -- so the Tweener a step answers with is as much a part of
-# it as Tween itself.
-Tween
-Tweener
-PropertyTweener
-MethodTweener
-CallbackTweener
-IntervalTweener
-SubtweenTweener
-SceneTreeTimer
-
-# What move_and_collide answers, and what _integrate_forces is handed.
-KinematicCollision2D
-KinematicCollision3D
-PhysicsDirectBodyState2D
-PhysicsDirectBodyState3D
-
-# A Tree's rows, and a TileMapLayer's per-tile data.
-TreeItem
-TileData
-
-# Raycasting. Held back until godot.Dictionary existed -- five of the six
-# methods answer or take one, so binding the space state before that would
-# have given a type nobody could write a query with.
-#
-# The parameters come too, and have to be named: they are RefCounted rather
-# than Resource, so `under Resource` never reached them. A script makes one
-# with godot.ClassDB.instantiate, which is how anything not a Node or a
-# Resource is made from here.
-PhysicsDirectSpaceState2D
-PhysicsDirectSpaceState3D
-PhysicsPointQueryParameters2D
-PhysicsPointQueryParameters3D
-PhysicsRayQueryParameters2D
-PhysicsRayQueryParameters3D
-PhysicsShapeQueryParameters2D
-PhysicsShapeQueryParameters3D
-
+# 05 の 8.7: the ones the engine holds a single instance of, which become
+# functions of a module of their own rather than a type.
 singletons
 
-# OpenXR reaches L^ half-way. These two are not instantiable and came in only
-# as the ancestors of Resources `under Resource` reached, and what they are
-# for -- OpenXRAPIExtension, OpenXRInterface -- is not here, so nothing can be
-# done with what did arrive. Half a subsystem reads as a supported one, which
-# is worse than none.
+# What is left over: a class the engine never instantiates and nothing
+# instantiable inherits from, so no `under` reaches it -- yet a bound method
+# hands one to a script. Each has to be named.
 #
-# The OpenXR *nodes* stay: OpenXRHand, OpenXRCompositionLayerQuad and the
-# rest are what the editor offers as a script's parent, which is exactly what
-# `under Node` is for.
-!OpenXRBindingModifier
-!OpenXRHapticBase
+# A file, a directory, a row of a Tree, a tile's data, the timer create_timer
+# answers, the state a PackedScene keeps, a playback an AudioStreamPlayer
+# hands out, the device a compute shader runs on.
+DirAccess
+FileAccess
+TreeItem
+TileData
+SceneTreeTimer
+SceneState
+SkinReference
+RenderingDevice
+TLSOptions
+ENetPacketPeer
+InstancePlaceholder
+PackedDataContainerRef
+AudioEffectSpectrumAnalyzerInstance
+AudioStreamGeneratorPlayback
+AudioStreamPlaybackInteractive
+AudioStreamPlaybackPolyphonic
+OpenXRFutureResult
+WebXRInterface
+
+# The same, and with no callable method of their own -- so what naming them
+# buys is the type itself: a value crosses as what it is rather than as the
+# nearest ancestor that was registered.
+Node3DGizmo
+JavaScriptObject
+ResourceImporter
+AudioStreamPlaybackPlaylist
+AudioStreamPlaybackSynchronized
+
+# MissingNode and MissingResource are left out, as Godot leaves them out of
+# its own dialog: each stands for a class a scene named and the build does
+# not have, so what a script would do with one is nothing.

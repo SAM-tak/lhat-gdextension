@@ -75,7 +75,7 @@ HOSTDATA = {
 # LHAT_GD_MAX_BOXED). A method wanting none is handed no frame for them.
 BOXED = {"LHAT_GD_STRING", "LHAT_GD_STRINGNAME", "LHAT_GD_NODEPATH",
          "LHAT_GD_VARIANT"}
-MAX_BOXED = 4
+MAX_BOXED = 5
 
 # A string of the engine's is three types and one L^ type: what a script
 # writes is text, and which flavour the engine wanted is the boundary's
@@ -152,7 +152,7 @@ def kind_of(spelling, classes, wanted):
             if step in wanted:
                 return "LHAT_GD_OBJECT", "godot." + step
         return "LHAT_GD_OBJECT", "godot.Object"
-    return None  # a typed dictionary's key or value, and nothing else
+    return None  # a raw pointer, a typed dictionary's key or value
 
 
 def chain(name, classes):
@@ -244,6 +244,18 @@ def selected(classes, api):
                 for step in chain(leaf, classes):
                     if step not in wanted:
                         wanted.append(step)
+
+    # 05 の 8.7 makes a singleton a module of its own, so it cannot also be a
+    # type: godot.Input would name both, and the second registration is
+    # refused. `under Object` reaches 26 of them -- Engine, OS, ClassDB and
+    # the rest are ordinary instantiable classes as far as ClassDB is
+    # concerned -- so this is where they come back out.
+    #
+    # What derives from one is declared under the nearest ancestor that is
+    # still a type (write() walks for it): PhysicsServer2DExtension loses its
+    # link to PhysicsServer2D and lands under Object, which is what
+    # kind_of already answers for anything unregistered.
+    wanted = [n for n in wanted if n not in singletons]
 
     dropped = set()
     for named in excluded:
@@ -365,8 +377,9 @@ def write(api, classes, wanted, rows, arrays, left_out):
     say("// From %s." % api["header"]["version_full_name"])
     say("// %d classes, %d methods, %d typed arrays. %d methods were left"
         % (len(wanted), len(rows), len(arrays), left_out))
-    say("// out because an argument or an answer of theirs is a typed")
-    say("// dictionary's key or value, and nothing stands for those yet.")
+    say("// out because an argument or an answer of theirs is a raw pointer")
+    say("// or a typed dictionary's key or value, neither of which anything")
+    say("// here stands for.")
     say("")
     say('#include "lhat_godot_api.gen.h"')
     say("")
@@ -394,10 +407,16 @@ def write(api, classes, wanted, rows, arrays, left_out):
         say("};")
     say("")
     say("BoundClass classes[] = {")
+    held = set(wanted)
     for name in wanted:
+        # The nearest ancestor still registered, rather than the immediate
+        # parent: a singleton in between is a module and not a type, and
+        # skipping it keeps the tree whole instead of breaking it into roots.
         base = classes[name].get("inherits")
+        while base is not None and base not in held:
+            base = classes[base].get("inherits")
         say('    {"%s", %s, nullptr},'
-            % (name, ('"%s"' % base) if base in wanted else "nullptr"))
+            % (name, ('"%s"' % base) if base is not None else "nullptr"))
     say("};")
     say("")
     say("BoundMethod bound[] = {")

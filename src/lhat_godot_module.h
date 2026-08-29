@@ -144,7 +144,11 @@ enum {
 // measured costing more than the ptrcall it prepares -- so they get a frame
 // of their own, only as wide as any signature needs, and only where one
 // does. The generator refuses a table that would overrun this.
-#define LHAT_GD_MAX_BOXED 4
+//
+// Counted over the whole core API: 12,679 methods want none of them, 995
+// want one, and exactly one wants five --
+// OpenXRInteractionProfileMetadata.register_io_path.
+#define LHAT_GD_MAX_BOXED 5
 
 // One engine method, bound. Everything above `module` is generated and
 // constant; the two below are filled by the first registration, which is
