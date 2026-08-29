@@ -1,6 +1,17 @@
 #include "lhat_godot_containers.h"
 
 #include <godot_cpp/core/memory.hpp>
+#include <godot_cpp/variant/node_path.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
+#include <godot_cpp/variant/packed_color_array.hpp>
+#include <godot_cpp/variant/packed_float32_array.hpp>
+#include <godot_cpp/variant/packed_float64_array.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/packed_int64_array.hpp>
+#include <godot_cpp/variant/packed_string_array.hpp>
+#include <godot_cpp/variant/packed_vector2_array.hpp>
+#include <godot_cpp/variant/packed_vector3_array.hpp>
+#include <godot_cpp/variant/packed_vector4_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/string_name.hpp>
 
@@ -11,6 +22,8 @@
 namespace godot {
 namespace host {
 namespace {
+
+LhatValue element_missing(LhatMachine *machine, const BoundContainer *what);
 
 // Every member is registered with its own container's row as context, so
 // that `at` knows what its elements are as well as which module it is in.
@@ -42,6 +55,75 @@ Variant element_taken(LhatValue value, const Godot *module)
     bool valued = false;
     Variant held = variant_of_value(value, module, &valued);
     return valued ? held : to_variant(value, module);
+}
+
+// What an element that is not there answers with. 04 の 11.3 says nothing,
+// which an any^ can hold and a written type cannot -- a signature saying
+// godot.Vector2i has no nil^ to give back. So this is the empty one of
+// whatever the element is, which is what every packed array already answers
+// past its end.
+LhatValue element_missing(LhatMachine *machine, const BoundContainer *what)
+{
+    const Godot *module = what->module;
+    const Variant::Type kind = (Variant::Type)what->builtin;
+    // NIL is what the bare Array and every Dictionary carry: an any^, which
+    // takes 11.3's answer as it stands.
+    if (kind == Variant::NIL) {
+        return lhat_nil();
+    }
+    bool zeroed = false;
+    LhatValue made = value_zero(machine, module, kind, &zeroed);
+    if (zeroed) {
+        return made;
+    }
+    if (kind == Variant::OBJECT) {
+        // 8.8's handle that stands for nothing, which is what an engine
+        // object crosses as when there is none.
+        LhatValue out = lhat_nil();
+        return make_object(machine, module, nullptr, &out) ? out : lhat_nil();
+    }
+    // Everything left has a Variant standing for its own emptiness, and
+    // element_answer knows how to cross one.
+    switch (kind) {
+        case Variant::BOOL:
+            return element_answer(machine, what, false);
+        case Variant::INT:
+            return element_answer(machine, what, (int64_t)0);
+        case Variant::FLOAT:
+            return element_answer(machine, what, 0.0);
+        case Variant::STRING:
+            return element_answer(machine, what, String());
+        case Variant::STRING_NAME:
+            return element_answer(machine, what, StringName());
+        case Variant::NODE_PATH:
+            return element_answer(machine, what, NodePath());
+        case Variant::ARRAY:
+            return element_answer(machine, what, Array());
+        case Variant::DICTIONARY:
+            return element_answer(machine, what, Dictionary());
+        case Variant::PACKED_BYTE_ARRAY:
+            return element_answer(machine, what, PackedByteArray());
+        case Variant::PACKED_INT32_ARRAY:
+            return element_answer(machine, what, PackedInt32Array());
+        case Variant::PACKED_INT64_ARRAY:
+            return element_answer(machine, what, PackedInt64Array());
+        case Variant::PACKED_FLOAT32_ARRAY:
+            return element_answer(machine, what, PackedFloat32Array());
+        case Variant::PACKED_FLOAT64_ARRAY:
+            return element_answer(machine, what, PackedFloat64Array());
+        case Variant::PACKED_STRING_ARRAY:
+            return element_answer(machine, what, PackedStringArray());
+        case Variant::PACKED_VECTOR2_ARRAY:
+            return element_answer(machine, what, PackedVector2Array());
+        case Variant::PACKED_VECTOR3_ARRAY:
+            return element_answer(machine, what, PackedVector3Array());
+        case Variant::PACKED_VECTOR4_ARRAY:
+            return element_answer(machine, what, PackedVector4Array());
+        case Variant::PACKED_COLOR_ARRAY:
+            return element_answer(machine, what, PackedColorArray());
+        default:
+            return lhat_nil();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +164,8 @@ void array_at(LhatMachine *machine, void *context, const LhatValue *arguments,
                      ? lhat_as_integer(arguments[1])
                      : 0;
     if (held == nullptr || at < 1 || at > held->size()) {
+        answers[0] = element_missing(machine, container_of(context));
+        *answer_count = 1;
         return;
     }
     // 02 の 14: a sequence is written from 1, so that is what is read here.
@@ -229,9 +313,11 @@ void dictionary_at(LhatMachine *machine, void *context,
     if (held == nullptr || count < 2) {
         return;
     }
-    // 04 の 11.3 again: a key that is not there answers nothing.
+    // 04 の 11.3 again: a key that is not there answers the empty one.
     Variant key = element_taken(arguments[1], module);
     if (!held->has(key)) {
+        answers[0] = element_missing(machine, container_of(context));
+        *answer_count = 1;
         return;
     }
     answers[0] = element_answer(machine, container_of(context), (*held)[key]);
@@ -387,6 +473,59 @@ void dictionary_iterate(LhatMachine *machine, void *context,
     answers[0] = out;
     *answer_count = 1;
 }
+
+// A key read as one of 8.9's values. godot.Dictionary's own `at` cannot
+// answer one: its element is an any^, and 8.9 keeps a value out of anything
+// that outlives a frame. Naming the type in the member is what makes the
+// answer a direct one, which 8.9 allows -- the same road
+// godot.ArrayOfVector2i.at() already takes.
+//
+// A typed dictionary would not have answered this. What an engine hands back
+// here is a raycast's result, whose keys are a Vector2, an Object, an int and
+// a RID at once -- there is no one element type to declare, so the reader is
+// the only one who can say which is wanted.
+struct ValueAt {
+    const BoundContainer *what;
+    uint8_t kind;
+};
+
+void dictionary_at_value(LhatMachine *machine, void *context,
+                         const LhatValue *arguments, size_t count,
+                         LhatValue *answers, int *answer_count)
+{
+    const ValueAt *asked = (const ValueAt *)context;
+    const Godot *module = asked->what->module;
+    const Dictionary *held =
+        count > 0 ? held_dictionary_of(arguments[0], module) : nullptr;
+    Variant found;
+    if (held != nullptr && count > 1) {
+        Variant key = element_taken(arguments[1], module);
+        if (held->has(key)) {
+            found = (*held)[key];
+        }
+    }
+    if (found.get_type() == (Variant::Type)asked->kind) {
+        bool valued = false;
+        LhatValue made = value_of_variant(machine, module, found, &valued);
+        if (valued) {
+            answers[0] = made;
+            *answer_count = 1;
+            return;
+        }
+    }
+    // Not there, or there as something else. A signature naming the type has
+    // no nil^ to give back, so it gives back the empty one -- has() is what
+    // tells the two apart.
+    bool zeroed = false;
+    answers[0] =
+        value_zero(machine, module, (Variant::Type)asked->kind, &zeroed);
+    *answer_count = 1;
+}
+
+// One row per value type, filled at registration and the process's from then
+// on -- a member is registered with its own row as context, which is how it
+// knows which kind it was asked for.
+ValueAt value_reads[Variant::VARIANT_MAX];
 
 // ---------------------------------------------------------------------------
 // Making one, and declaring the types
@@ -561,6 +700,24 @@ bool declare_dictionary(LhatProgram *program, Godot *module,
     if (!declare_members(program, what, members,
                          sizeof(members) / sizeof(members[0]))) {
         return false;
+    }
+    // atVector2, atVector3, ... -- one per value type the module registered,
+    // named after the type so that they sort together next to `at`.
+    for (int kind = 0; kind < Variant::VARIANT_MAX; kind++) {
+        if (module->value_tags[kind] == nullptr) {
+            continue;
+        }
+        // The engine's own spelling for the kind, which is what the value
+        // type was registered under (lhat_godot_values.cpp's Named).
+        String named = Variant::get_type_name((Variant::Type)kind);
+        value_reads[kind].what = what;
+        value_reads[kind].kind = (uint8_t)kind;
+        if (!lhat_register_member(
+                program, "godot", what->name, kept(module, "at" + named),
+                kept(module, "f^self^, any^ -> godot." + named + ";"),
+                dictionary_at_value, &value_reads[kind])) {
+            return false;
+        }
     }
     return lhat_register_func(program, "godot", "dictionary",
                               kept(module, "f^ -> godot.Dictionary;"),

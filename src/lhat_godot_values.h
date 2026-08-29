@@ -64,6 +64,14 @@ bool value_taken(LhatValue held, const Godot *module, Color *out);
 LhatValue value_of_variant(LhatMachine *machine, const Godot *module,
                            const Variant &held, bool *found);
 
+// 05 の 8.9: a zero of one of the value types, named by its Variant kind.
+// What a container answers where the element is not there: a signature that
+// says godot.Vector2i has no nil^ to give back, so it gives back the value
+// every packed array already gives back past its end. `found` says whether
+// the kind was one of ours.
+LhatValue value_zero(LhatMachine *machine, const Godot *module,
+                     Variant::Type kind, bool *found);
+
 // The other way: whichever of the value types the L^ value IS -- not a box
 // of one, but the bytes themselves, as a parameter written godot.Vector2i
 // receives them. `found` says whether it was one.

@@ -1311,6 +1311,36 @@ bool register_values(LhatProgram *program, Godot *module)
 // What a Packed*Array's elements are handed over as. Written out rather than
 // templated: the four are all there are, and a caller in another translation
 // unit would otherwise need the traits above.
+LhatValue value_zero(LhatMachine *machine, const Godot *module,
+                     Variant::Type kind, bool *found)
+{
+    *found = true;
+    switch (kind) {
+#define LHAT_GODOT_ZERO(T_)                                                  case Named<T_>::kind:                                                        return answer<T_>(machine, module, T_())
+        LHAT_GODOT_ZERO(Vector2);
+        LHAT_GODOT_ZERO(Vector2i);
+        LHAT_GODOT_ZERO(Vector3);
+        LHAT_GODOT_ZERO(Vector3i);
+        LHAT_GODOT_ZERO(Vector4);
+        LHAT_GODOT_ZERO(Vector4i);
+        LHAT_GODOT_ZERO(Color);
+        LHAT_GODOT_ZERO(Quaternion);
+        LHAT_GODOT_ZERO(Rect2);
+        LHAT_GODOT_ZERO(Rect2i);
+        LHAT_GODOT_ZERO(AABB);
+        LHAT_GODOT_ZERO(Plane);
+        LHAT_GODOT_ZERO(Transform2D);
+        LHAT_GODOT_ZERO(Basis);
+        LHAT_GODOT_ZERO(Transform3D);
+        LHAT_GODOT_ZERO(Projection);
+        LHAT_GODOT_ZERO(RID);
+#undef LHAT_GODOT_ZERO
+        default:
+            *found = false;
+            return lhat_nil();
+    }
+}
+
 Variant variant_of_value(LhatValue value, const Godot *module, bool *found)
 {
     *found = true;
