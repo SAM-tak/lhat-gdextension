@@ -349,6 +349,11 @@ const char *kept(Godot *module, const String &text)
     return held;
 }
 
+const Godot *shared_godot()
+{
+    return shared;
+}
+
 void dispose_godot()
 {
     if (shared != nullptr) {

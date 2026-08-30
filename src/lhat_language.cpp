@@ -15,6 +15,7 @@
 
 #include "lhat.h"
 #include "lhat_godot_module.h"
+#include "lhat_debugger.h"
 #include "lhat_host.h"
 #include "lhat_script.h"
 
@@ -208,6 +209,9 @@ LhatProgram *LhatLanguage::world_program()
     // 05 の 8.7: what was registered reaches the machine here, which is what
     // makes the names bound above answer something.
     lhat_program_install(program, machine);
+    // 09 の 2.2: and the hook goes on where a debugger is attached, which is
+    // what lets a breakpoint stop this machine (lhat_debugger.h).
+    host::watch(machine, this);
     return program;
 }
 
@@ -1068,65 +1072,56 @@ String LhatLanguage::_debug_get_error() const
 
 int32_t LhatLanguage::_debug_get_stack_level_count() const
 {
-    return (int32_t)host::last_fault_frames().size();
+    return host::frame_count();
 }
 
 int32_t LhatLanguage::_debug_get_stack_level_line(int32_t level) const
 {
-    const Vector<host::FaultFrame> &frames = host::last_fault_frames();
-    if (level < 0 || level >= frames.size()) {
-        return 0;
-    }
-    return frames[level].line;
+    host::FaultFrame one;
+    return host::frame_at(level, &one) ? one.line : 0;
 }
 
 String LhatLanguage::_debug_get_stack_level_function(int32_t level) const
 {
-    const Vector<host::FaultFrame> &frames = host::last_fault_frames();
-    if (level < 0 || level >= frames.size()) {
-        return String();
-    }
-    return frames[level].name;
+    host::FaultFrame one;
+    return host::frame_at(level, &one) ? one.name : String();
 }
 
 String LhatLanguage::_debug_get_stack_level_source(int32_t level) const
 {
-    const Vector<host::FaultFrame> &frames = host::last_fault_frames();
-    if (level < 0 || level >= frames.size()) {
-        return String();
-    }
-    return frames[level].source;
+    host::FaultFrame one;
+    return host::frame_at(level, &one) ? one.source : String();
 }
 
-// Still empty, and not for want of trying: a LhatProto keeps its debug_name,
-// its source_name and a line per instruction, and no table of what its
-// registers were called. Answering these wants the compiler to keep one --
-// the same table a DAP `variables` request wants, so it lands with that
-// work rather than ahead of it.
+// 09 の 3.2: the frame's own bindings and what it captured. Only while the
+// machine is stopped in the hook -- a fault's registers are gone by the time
+// the panel asks, and only a live frame has any.
 Dictionary LhatLanguage::_debug_get_stack_level_locals(int32_t level,
                                                        int32_t max_subitems,
                                                        int32_t max_depth)
 {
-    (void)level;
+    // Depth is what a value is walked to when it is a structure, and a
+    // binding is written out whole here rather than walked.
     (void)max_subitems;
     (void)max_depth;
-    return Dictionary();
+    return host::frame_locals(level);
 }
 
+// 14.3's fields of whatever self^ the frame is a method of.
 Dictionary LhatLanguage::_debug_get_stack_level_members(int32_t level,
                                                         int32_t max_subitems,
                                                         int32_t max_depth)
 {
-    (void)level;
     (void)max_subitems;
     (void)max_depth;
-    return Dictionary();
+    return host::frame_members(level);
 }
 
+// The engine's own `evaluate` will not run without this (remote_debugger.cpp
+// bails on a null one), and the inspector shows the object it names.
 void *LhatLanguage::_debug_get_stack_level_instance(int32_t level)
 {
-    (void)level;
-    return nullptr;
+    return host::frame_instance(level);
 }
 
 Dictionary LhatLanguage::_debug_get_globals(int32_t max_subitems,
@@ -1143,13 +1138,17 @@ Dictionary LhatLanguage::_debug_get_globals(int32_t max_subitems,
 TypedArray<Dictionary> LhatLanguage::_debug_get_current_stack_info()
 {
     TypedArray<Dictionary> out;
-    const Vector<host::FaultFrame> &frames = host::last_fault_frames();
-    for (int at = 0; at < frames.size(); at++) {
-        Dictionary one;
-        one["file"] = frames[at].source;
-        one["func"] = frames[at].name;
-        one["line"] = frames[at].line;
-        out.push_back(one);
+    const int32_t deep = host::frame_count();
+    for (int32_t at = 0; at < deep; at++) {
+        host::FaultFrame one;
+        if (!host::frame_at(at, &one)) {
+            break;
+        }
+        Dictionary said;
+        said["file"] = one.source;
+        said["func"] = one.name;
+        said["line"] = one.line;
+        out.push_back(said);
     }
     return out;
 }

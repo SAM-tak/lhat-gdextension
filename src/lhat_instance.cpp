@@ -3,6 +3,7 @@
 #include <godot_cpp/classes/script_language.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/godot.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/templates/local_vector.hpp>
 #include <godot_cpp/core/property_info.hpp>
 #include <godot_cpp/variant/string_name.hpp>
@@ -37,6 +38,19 @@ struct Instance {
 Instance *of(GDExtensionScriptInstanceDataPtr data)
 {
     return (Instance *)data;
+}
+
+// 09 の 3.2: what a debugger asks for by frame. The frame answers self^ as a
+// value, and the panel wants the ScriptInstance the engine knows -- so the
+// two are paired here, keyed by the table self^ points at.
+//
+// Safe as a key because the collector marks and sweeps and never moves: a
+// live table stays where it was made. The pairing is undone in instance_free,
+// which is the only way an entry can outlive what it names.
+HashMap<const void *, GDExtensionScriptInstanceDataPtr> &instances_by_self()
+{
+    static HashMap<const void *, GDExtensionScriptInstanceDataPtr> it;
+    return it;
 }
 
 // Whether `self` is still worth reading. Asked before anything looks at it,
@@ -510,6 +524,9 @@ void instance_free(GDExtensionScriptInstanceDataPtr data)
         it->script->lhat_generation() == it->born) {
         it->script->drop_instance(it->id);
     }
+    if (lhat_is_object(it->self)) {
+        instances_by_self().erase(lhat_as_object(it->self));
+    }
     memdelete(it);
 }
 
@@ -582,8 +599,13 @@ void *lhat_instance_create(LhatScript *script, Object *owner)
     it->born = script->lhat_generation();
     script->worn_by_object(owner);
 
-    return internal::gdextension_interface_script_instance_create3(
-        &instance_info, it);
+    GDExtensionScriptInstanceDataPtr made =
+        internal::gdextension_interface_script_instance_create3(&instance_info,
+                                                                it);
+    if (lhat_is_object(self)) {
+        instances_by_self().insert(lhat_as_object(self), it);
+    }
+    return made;
 }
 
 namespace {
@@ -627,6 +649,52 @@ Variant blank_of(LhatUnitTypeKind kind)
 }
 
 }  // namespace
+
+void *lhat_instance_wearing(LhatValue self)
+{
+    if (!lhat_is_object(self)) {
+        return nullptr;
+    }
+    const void *key = lhat_as_object(self);
+    if (GDExtensionScriptInstanceDataPtr *found =
+            instances_by_self().getptr(key)) {
+        return *found;
+    }
+    return nullptr;
+}
+
+Dictionary lhat_instance_members(void *instance)
+{
+    Dictionary out;
+    Instance *it = (Instance *)instance;
+    if (it == nullptr || !living(it) ||
+        !lhat_is_object_kind(it->self, LHAT_OBJECT_TABLE)) {
+        return out;
+    }
+    // 14.3 fixes an instance's fields when it is made, so what a fresh one
+    // holds is the list of what any of them holds -- and the script already
+    // read that off the definition (read_defaults).
+    const LhatTable *table = (const LhatTable *)lhat_as_object(it->self);
+    LhatMachine *machine = it->script->lhat_machine();
+    PackedStringArray names;
+    Array values;
+    const Array said = it->script->lhat_defaults().keys();
+    for (int at = 0; at < said.size(); at++) {
+        const String named = said[at];
+        CharString spelt = named.utf8();
+        LhatValue key = lhat_nil();
+        if (!lhat_machine_make_string(machine, spelt.get_data(),
+                                      (size_t)spelt.length(), &key)) {
+            continue;
+        }
+        names.push_back(named);
+        values.push_back(host::to_variant(lhat_table_get(table, key),
+                                          it->script->godot()));
+    }
+    out["members"] = names;
+    out["values"] = values;
+    return out;
+}
 
 void *lhat_placeholder_create(LhatScript *script, Object *owner)
 {

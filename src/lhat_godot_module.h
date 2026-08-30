@@ -207,6 +207,11 @@ const Godot *register_godot(LhatProgram *program);
 // back the one pointer, so registering into a second program builds nothing.
 const char *kept(Godot *module, const String &text);
 
+// The one module the process has, or NULL before the first registration.
+// What a caller with no registration of its own -- the debugger -- reads a
+// value against.
+const Godot *shared_godot();
+
 // Gives the module back. Only when no LhatProgram still borrows its strings,
 // which means after every program is free -- the same window
 // lhat_registry_dispose asks for, and the call belongs just before it.

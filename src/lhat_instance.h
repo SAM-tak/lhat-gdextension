@@ -30,6 +30,17 @@ void *lhat_instance_create(LhatScript *script, Object *owner);
 // declares so the inspector still has fields to show. Nothing of the class
 // runs -- that is the whole point of not making a real one.
 //
+// 09 の 3.2: the script instance a frame's self^ belongs to, or NULL where
+// that value is not one an instance was made around. What the debugger
+// answers for debug_get_stack_level_instance, which is what the engine's own
+// `evaluate` insists on before it will run one.
+void *lhat_instance_wearing(LhatValue self);
+
+// The instance's own fields, in the shape ScriptLanguageExtension unpacks
+// for debug_get_stack_level_members: {"members": PackedStringArray,
+// "values": Array}. Empty for anything but a living instance.
+Dictionary lhat_instance_members(void *instance);
+
 // Told from the tree rather than from an instance, since the reason there is
 // a placeholder is that no instance was made. 18 says which fields to show
 // and program.h's LhatUnitMember what each is called and shaped like.
