@@ -39,7 +39,7 @@ $demo = Join-Path $root "demo"
 $built = Get-ChildItem -Path (Join-Path $demo "bin") -Filter "liblhat.*" `
     -ErrorAction SilentlyContinue
 if (-not $built) {
-    throw "no extension in demo/bin -- cmake --build --preset debug first"
+    throw "no extension in demo/bin -- cmake --build --preset editor first"
 }
 
 # An absolute path, since the file belongs at the workspace root rather than in

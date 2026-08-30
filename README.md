@@ -903,19 +903,40 @@ LhatRuntime.call_member("res://lib/api.lh", "numbers", [5])            # [1,4,9,
 
 ```powershell
 . .\scripts\devshell.ps1
-cmake --preset debug        # 初回は godot-cpp を取得する
-cmake --build --preset debug
+cmake --preset editor       # 初回は godot-cpp を取得する
+cmake --build --preset editor
 ```
 
-`godot-release` も同じ。前者は Godot の `template_debug`、後者は
-`template_release` を作る。出力は `godot/demo/bin/` に直接落ちる:
+配るものは3つある。Godot は最適化の有無ではなく**どのランタイムが読むか**で
+呼び分けていて、3つは排他:
+
+| preset | `GODOTCPP_TARGET` | 読むのは | Unity で言えば |
+|---|---|---|---|
+| `editor` | `editor` | エディタ（と、そこから起動したゲーム） | development |
+| `template_debug` | `template_debug` | debug 書き出しのゲーム | development |
+| `template_release` | `template_release` | release 書き出しのゲーム | shipping |
+
+**3つとも最適化あり・デバッグシンボルなし**（`CMAKE_BUILD_TYPE=Release`）。
+Godot の `debug` / `release` はランタイムの別であって最適化の別ではなく、
+公式の書き出しテンプレートも両方とも最適化ビルド。
+
+拡張そのもののバグを追うときだけ `dev`（`Debug` + `editor`、最適化なし・
+シンボルあり）。これは配らない。
+
+出力は `demo/bin/` に直接落ちる:
 
 ```text
+liblhat.windows.editor.x86_64.dll
 liblhat.windows.template_debug.x86_64.dll
+liblhat.windows.template_release.x86_64.dll
 ```
 
 この名前は godot-cpp が自分のライブラリに付ける接尾辞から取っている。
-`demo/lhat.gdextension` の `[libraries]` はその綴りをそのまま書いたもの。
+`demo/lhat.gdextension` の `[libraries]` はその綴りをそのまま書いたもの ——
+ただしキーは `debug` / `release` ではなく `editor` / `template_debug` /
+`template_release`。キーはタグの連言で、**タグ数の多い行が勝つ**（先勝ちでは
+ない）ので、同数で重なる `debug` を書くとエディタとゲームのどちらが取るかが
+キーの順で決まってしまう。この3つなら排他になる。
 
 ## 言語サーバーに `godot` を教える
 

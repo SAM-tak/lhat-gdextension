@@ -18,34 +18,62 @@
       "generator": "Ninja"
     },
     {
-      "name": "debug",
-      "displayName": "Godot GDExtension, debug template (Ninja)",
+      "name": "editor",
+      "displayName": "editor (optimised) -- what the editor loads",
       "inherits": "ninja-base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_BUILD_TYPE": "Release",
+        "GODOTCPP_TARGET": "editor"
+      }
+    },
+    {
+      "name": "template_debug",
+      "displayName": "development (optimised) -- what a debug export loads",
+      "inherits": "ninja-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
         "GODOTCPP_TARGET": "template_debug"
       }
     },
     {
-      "name": "release",
-      "displayName": "Godot GDExtension, release template (Ninja)",
+      "name": "template_release",
+      "displayName": "shipping (optimised) -- what a release export loads",
       "inherits": "ninja-base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "GODOTCPP_TARGET": "template_release"
       }
+    },
+    {
+      "name": "dev",
+      "displayName": "editor, unoptimised with symbols -- for debugging THIS",
+      "inherits": "ninja-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GODOTCPP_TARGET": "editor"
+      }
     }
   ],
   "buildPresets": [
     {
-      "name": "debug",
-      "displayName": "Godot GDExtension, debug template (Ninja)",
-      "configurePreset": "debug"
+      "name": "editor",
+      "displayName": "editor (optimised)",
+      "configurePreset": "editor"
     },
     {
-      "name": "release",
-      "displayName": "Godot GDExtension, release template (Ninja)",
-      "configurePreset": "release"
+      "name": "template_debug",
+      "displayName": "development (optimised)",
+      "configurePreset": "template_debug"
+    },
+    {
+      "name": "template_release",
+      "displayName": "shipping (optimised)",
+      "configurePreset": "template_release"
+    },
+    {
+      "name": "dev",
+      "displayName": "editor, unoptimised with symbols",
+      "configurePreset": "dev"
     }
   ]
 }
