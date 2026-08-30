@@ -9,13 +9,14 @@
 //     python scripts/gen-godot-api.py
 //
 // From Godot Engine v4.5.stable.official.
-// 854 classes, 13916 methods, 58 typed arrays. 2 methods were left
+// 855 classes, 13917 methods, 58 typed arrays. 2 methods were left
 // out because an argument or an answer of theirs is a raw pointer
 // or a typed dictionary's key or value, neither of which anything
 // here stands for.
 
 #include "lhat_godot_api.gen.h"
 
+#include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/godot.hpp>
 #include <godot_cpp/variant/string_name.hpp>
 
@@ -3309,6 +3310,10 @@ BoundClass classes[] = {
     {"ResourceImporter", "RefCounted", nullptr},
     {"AudioStreamPlaybackPlaylist", "AudioStreamPlayback", nullptr},
     {"AudioStreamPlaybackSynchronized", "AudioStreamPlayback", nullptr},
+};
+
+BoundClass editor_classes[] = {
+    {"EditorScenePostImport", "RefCounted", nullptr},
 };
 
 BoundMethod bound[] = {
@@ -60859,6 +60864,13 @@ BoundMethod bound[] = {
      LHAT_GD_NIL, 1, 0, arg_shape_37, nullptr, nullptr, nullptr},
 };
 
+BoundMethod editor_bound[] = {
+    {"get_source_file",
+     "f^self^ -> string^;",
+     "EditorScenePostImport", nullptr, 201670096u,
+     LHAT_GD_STRING, 0, 0, nullptr, nullptr, nullptr, nullptr},
+};
+
 }  // namespace
 
 // 8.8改: one type per element a bound method asks for, each declared
@@ -60987,11 +60999,26 @@ BoundContainer typed_arrays[] = {
 const size_t typed_array_count =
     sizeof(typed_arrays) / sizeof(typed_arrays[0]);
 
-bool register_godot_classes(LhatProgram *program, Godot *module)
+// Whether this build has the editor API at all. An editor binary
+// does -- including the game it launches, which is the same
+// binary -- and an exported template does not, so what was
+// registered for the editor is skipped there rather than bound to
+// a class that is not present. Asked once: ClassDB answers the
+// same thing every time.
+bool has_editor_api()
+{
+    static const bool it =
+        ClassDB::class_exists("EditorScenePostImport");
+    return it;
+}
+
+bool declare(LhatProgram *program, Godot *module,
+             BoundClass *owners, size_t how_many)
 {
     // The base is always earlier in the table than what is declared
     // under it, since a chain is walked from its root.
-    for (BoundClass &owner : classes) {
+    for (size_t at = 0; at < how_many; at++) {
+        BoundClass &owner = owners[at];
         owner.tag =
             owner.base == nullptr
                 ? lhat_register_hostdata_type(program, "godot",
@@ -61007,9 +61034,23 @@ bool register_godot_classes(LhatProgram *program, Godot *module)
     return true;
 }
 
-bool register_godot_api(LhatProgram *program, Godot *module)
+bool register_godot_classes(LhatProgram *program, Godot *module)
 {
-    for (BoundMethod &method : bound) {
+    if (!declare(program, module, classes,
+                 sizeof(classes) / sizeof(classes[0]))) {
+        return false;
+    }
+    return !has_editor_api() ||
+           declare(program, module, editor_classes,
+                   sizeof(editor_classes) /
+                       sizeof(editor_classes[0]));
+}
+
+bool bind(LhatProgram *program, Godot *module, BoundMethod *methods,
+          size_t how_many)
+{
+    for (size_t at = 0; at < how_many; at++) {
+        BoundMethod &method = methods[at];
         // 8.7 makes the module the process's, so a bind is found
         // once however many programs are registered into.
         if (method.module == nullptr) {
@@ -61045,6 +61086,17 @@ bool register_godot_api(LhatProgram *program, Godot *module)
         }
     }
     return true;
+}
+
+bool register_godot_api(LhatProgram *program, Godot *module)
+{
+    if (!bind(program, module, bound,
+              sizeof(bound) / sizeof(bound[0]))) {
+        return false;
+    }
+    return !has_editor_api() ||
+           bind(program, module, editor_bound,
+                sizeof(editor_bound) / sizeof(editor_bound[0]));
 }
 
 }  // namespace host

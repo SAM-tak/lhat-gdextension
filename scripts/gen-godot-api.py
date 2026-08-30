@@ -326,7 +326,18 @@ def gather(api, classes, wanted, singletons=()):
                 if (spelling.startswith("typedarray::") and
                         spelling not in arrays):
                     arrays.append(spelling)
+            # A row belongs to the editor when its class does, or when any
+            # type it names does: an exported game has neither, so the two
+            # have to leave together or a signature would name a type that
+            # was never registered.
+            editor = classes[name]["api_type"] != "core"
+            for spelling in ([a["type"] for a in arguments] +
+                             ([answered] if answered else [])):
+                bare = spelling.replace("typedarray::", "")
+                if bare in classes and classes[bare]["api_type"] != "core":
+                    editor = True
             rows.append({
+                "editor": editor,
                 "name": method["name"],
                 "signature": signature,
                 "class": name,
@@ -383,6 +394,7 @@ def write(api, classes, wanted, rows, arrays, left_out):
     say("")
     say('#include "lhat_godot_api.gen.h"')
     say("")
+    say("#include <godot_cpp/core/class_db.hpp>")
     say("#include <godot_cpp/godot.hpp>")
     say("#include <godot_cpp/variant/string_name.hpp>")
     say("")
@@ -406,43 +418,58 @@ def write(api, classes, wanted, rows, arrays, left_out):
         say(line)
         say("};")
     say("")
-    say("BoundClass classes[] = {")
+    # 05 の 8.7 registers before checking, and an exported game has no
+    # editor API at all -- so what belongs to it is written into tables of
+    # its own and skipped where ClassDB does not have it. Two arrays rather
+    # than a flag per row: the skipping is then one branch instead of
+    # fourteen thousand.
     held = set(wanted)
-    for name in wanted:
+    def base_of(name):
         # The nearest ancestor still registered, rather than the immediate
         # parent: a singleton in between is a module and not a type, and
         # skipping it keeps the tree whole instead of breaking it into roots.
         base = classes[name].get("inherits")
         while base is not None and base not in held:
             base = classes[base].get("inherits")
-        say('    {"%s", %s, nullptr},'
-            % (name, ('"%s"' % base) if base is not None else "nullptr"))
-    say("};")
-    say("")
-    say("BoundMethod bound[] = {")
-    for row in rows:
-        shape = shapes[tuple(row["kinds"])] if row["kinds"] else "nullptr"
-        say('    {"%s",' % row["name"])
-        # C++ joins adjacent literals, so a signature too wide for one line
-        # is written as several. The text is the same either way.
-        pieces = split_signature(row["signature"])
-        for index, piece in enumerate(pieces):
-            tail = "," if index == len(pieces) - 1 else ""
-            say('     "%s"%s' % (piece, tail))
-        say('     "%s", %s, %uu,'
-            % (row["class"],
-               ('"%s"' % row["module"]) if row["module"] else "nullptr",
-               row["hash"]))
-        tail = "%s, %d, %d, %s, nullptr, nullptr, nullptr}," % (
-            row["answer"], len(row["kinds"]), row["boxed"], shape)
-        if len(tail) + 5 > 79:
-            say("     %s," % row["answer"])
-            say("     %d, %d, %s, nullptr, nullptr, nullptr},"
-                % (len(row["kinds"]), row["boxed"], shape))
-        else:
-            say("     %s" % tail)
-    say("};")
-    say("")
+        return ('"%s"' % base) if base is not None else "nullptr"
+
+    for label, editor in (("classes", False), ("editor_classes", True)):
+        say("BoundClass %s[] = {" % label)
+        for name in wanted:
+            if (classes[name]["api_type"] != "core") != editor:
+                continue
+            say('    {"%s", %s, nullptr},' % (name, base_of(name)))
+        say("};")
+        say("")
+
+    for label, editor in (("bound", False), ("editor_bound", True)):
+        say("BoundMethod %s[] = {" % label)
+        for row in rows:
+            if row["editor"] != editor:
+                continue
+            shape = (shapes[tuple(row["kinds"])] if row["kinds"]
+                     else "nullptr")
+            say('    {"%s",' % row["name"])
+            # C++ joins adjacent literals, so a signature too wide for one
+            # line is written as several. The text is the same either way.
+            pieces = split_signature(row["signature"])
+            for index, piece in enumerate(pieces):
+                tail = "," if index == len(pieces) - 1 else ""
+                say('     "%s"%s' % (piece, tail))
+            say('     "%s", %s, %uu,'
+                % (row["class"],
+                   ('"%s"' % row["module"]) if row["module"] else "nullptr",
+                   row["hash"]))
+            tail = "%s, %d, %d, %s, nullptr, nullptr, nullptr}," % (
+                row["answer"], len(row["kinds"]), row["boxed"], shape)
+            if len(tail) + 5 > 79:
+                say("     %s," % row["answer"])
+                say("     %d, %d, %s, nullptr, nullptr, nullptr},"
+                    % (len(row["kinds"]), row["boxed"], shape))
+            else:
+                say("     %s" % tail)
+        say("};")
+        say("")
     say("}  // namespace")
     say("")
     say("// 8.8改: one type per element a bound method asks for, each declared")
@@ -470,11 +497,26 @@ def write(api, classes, wanted, rows, arrays, left_out):
     say("const size_t typed_array_count =")
     say("    sizeof(typed_arrays) / sizeof(typed_arrays[0]);")
     say("")
-    say("bool register_godot_classes(LhatProgram *program, Godot *module)")
+    say("// Whether this build has the editor API at all. An editor binary")
+    say("// does -- including the game it launches, which is the same")
+    say("// binary -- and an exported template does not, so what was")
+    say("// registered for the editor is skipped there rather than bound to")
+    say("// a class that is not present. Asked once: ClassDB answers the")
+    say("// same thing every time.")
+    say("bool has_editor_api()")
+    say("{")
+    say("    static const bool it =")
+    say('        ClassDB::class_exists("EditorScenePostImport");')
+    say("    return it;")
+    say("}")
+    say("")
+    say("bool declare(LhatProgram *program, Godot *module,")
+    say("             BoundClass *owners, size_t how_many)")
     say("{")
     say("    // The base is always earlier in the table than what is declared")
     say("    // under it, since a chain is walked from its root.")
-    say("    for (BoundClass &owner : classes) {")
+    say("    for (size_t at = 0; at < how_many; at++) {")
+    say("        BoundClass &owner = owners[at];")
     say("        owner.tag =")
     say("            owner.base == nullptr")
     say('                ? lhat_register_hostdata_type(program, "godot",')
@@ -490,9 +532,23 @@ def write(api, classes, wanted, rows, arrays, left_out):
     say("    return true;")
     say("}")
     say("")
-    say("bool register_godot_api(LhatProgram *program, Godot *module)")
+    say("bool register_godot_classes(LhatProgram *program, Godot *module)")
     say("{")
-    say("    for (BoundMethod &method : bound) {")
+    say("    if (!declare(program, module, classes,")
+    say("                 sizeof(classes) / sizeof(classes[0]))) {")
+    say("        return false;")
+    say("    }")
+    say("    return !has_editor_api() ||")
+    say("           declare(program, module, editor_classes,")
+    say("                   sizeof(editor_classes) /")
+    say("                       sizeof(editor_classes[0]));")
+    say("}")
+    say("")
+    say("bool bind(LhatProgram *program, Godot *module, BoundMethod *methods,")
+    say("          size_t how_many)")
+    say("{")
+    say("    for (size_t at = 0; at < how_many; at++) {")
+    say("        BoundMethod &method = methods[at];")
     say("        // 8.7 makes the module the process's, so a bind is found")
     say("        // once however many programs are registered into.")
     say("        if (method.module == nullptr) {")
@@ -529,6 +585,17 @@ def write(api, classes, wanted, rows, arrays, left_out):
     say("        }")
     say("    }")
     say("    return true;")
+    say("}")
+    say("")
+    say("bool register_godot_api(LhatProgram *program, Godot *module)")
+    say("{")
+    say("    if (!bind(program, module, bound,")
+    say("              sizeof(bound) / sizeof(bound[0]))) {")
+    say("        return false;")
+    say("    }")
+    say("    return !has_editor_api() ||")
+    say("           bind(program, module, editor_bound,")
+    say("                sizeof(editor_bound) / sizeof(editor_bound[0]));")
     say("}")
     say("")
     say("}  // namespace host")

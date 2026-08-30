@@ -73,6 +73,18 @@ ResourceImporter
 AudioStreamPlaybackPlaylist
 AudioStreamPlaybackSynchronized
 
+# The one editor-API class named here. A script is worn by it the way a
+# resource is worn -- the import dock's Custom Script field -- and what it
+# does is take the imported scene apart and put it back together, which is
+# every Node method and no editor one. It drags nothing in: RefCounted and
+# Object are already here, get_source_file answers a string, and _post_import
+# is a virtual, which is implemented rather than called.
+#
+# In an exported game the class does not exist, so its one method's bind is
+# NULL and calling it would fault -- which nothing does, since nothing
+# imports a scene at run time.
+EditorScenePostImport
+
 # MissingNode and MissingResource are left out, as Godot leaves them out of
 # its own dialog: each stands for a class a scene named and the build does
 # not have, so what a script would do with one is nothing.
