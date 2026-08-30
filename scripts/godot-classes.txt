@@ -73,17 +73,30 @@ ResourceImporter
 AudioStreamPlaybackPlaylist
 AudioStreamPlaybackSynchronized
 
-# The one editor-API class named here. A script is worn by it the way a
-# resource is worn -- the import dock's Custom Script field -- and what it
-# does is take the imported scene apart and put it back together, which is
-# every Node method and no editor one. It drags nothing in: RefCounted and
-# Object are already here, get_source_file answers a string, and _post_import
-# is a virtual, which is implemented rather than called.
+# The editor's own half: every editor-API class the engine can make, and
+# every ancestor of one. What a script does with these is wear one and
+# implement its virtuals -- an EditorPlugin, an EditorImportPlugin, an
+# EditorScenePostImport -- which is how a project extends the editor.
 #
-# In an exported game the class does not exist, so its one method's bind is
-# NULL and calling it would fault -- which nothing does, since nothing
-# imports a scene at run time.
-EditorScenePostImport
+# An exported game has none of these classes, so none of this is registered
+# there (lhat_godot_api.gen.cpp's has_editor_api). What a shipped game pays
+# is the rows in its binary and nothing at run time.
+editor
+
+# The ten the sweep does not reach: the engine never instantiates one and
+# nothing instantiable inherits from one, yet each is handed to a plugin --
+# EditorInterface most of all, which is how a plugin reaches the editor at
+# all.
+EditorInterface
+EditorUndoRedoManager
+EditorFileSystem
+EditorResourcePreview
+EditorDebuggerSession
+EditorExportPreset
+ScriptEditor
+ScriptEditorBase
+FileSystemDock
+EditorToaster
 
 # MissingNode and MissingResource are left out, as Godot leaves them out of
 # its own dialog: each stands for a class a scene named and the build does

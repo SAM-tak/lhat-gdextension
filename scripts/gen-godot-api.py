@@ -214,6 +214,22 @@ def selected(classes, api):
                     sys.exit("no engine class named " + named)
                 excluded.append(named)
                 continue
+            if line == "editor":
+                # The editor half of `under Object`: every editor-API class
+                # the engine can make, and every ancestor of one. Kept a word
+                # of its own rather than folded into `under`, because
+                # offerable() is what says "the engine can make this" and
+                # the api_type test in it is what keeps the editor out of
+                # every other line here.
+                for name in classes:
+                    if (classes[name]["api_type"] == "core" or
+                            not classes[name].get("is_instantiable")):
+                        continue
+                    for step in chain(name, classes):
+                        if (classes[step]["api_type"] != "core" and
+                                step not in wanted):
+                            wanted.append(step)
+                continue
             if line == "singletons":
                 for name in every_singleton:
                     if name not in singletons:
