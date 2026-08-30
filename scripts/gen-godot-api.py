@@ -740,7 +740,7 @@ def write_docs(api, classes, registered, singletons, rows, dropped=()):
         say(note)
         say("")
         say("| クラス | 親 | L^ | メソッド | 書き方 |")
-        say("|---|---|---|---|---|")
+        say("| --- | --- | --- | --- | --- |")  # the spelling markdownlint keeps
         for name in sorted(names):
             described = classes[name]
             reachable = callable_methods(name, classes)

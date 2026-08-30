@@ -7,8 +7,8 @@
 # Usage (note the leading dot -- it must be dot-sourced):
 #
 #     . .\scripts\devshell.ps1
-#     cmake --preset editor
-#     cmake --build --preset editor
+#     cmake --preset release
+#     cmake --build --preset release
 
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path $vswhere)) {

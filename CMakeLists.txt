@@ -17,6 +17,59 @@ cmake_minimum_required(VERSION 3.25)
 
 project(lhat_gdextension C CXX)
 
+# ---- All three runtimes at once --------------------------------------------
+# Godot loads a different library for each of three runtimes -- the editor, a
+# debug export, a release export -- and which one a tree builds is
+# GODOTCPP_TARGET, a cache variable of godot-cpp's. So each is a configure of
+# its own, and a preset, being one configure, cannot span them.
+#
+# This option makes the tree a driver instead: it holds nothing of its own and
+# configures and builds the three under build/<target>-<level>, which are the
+# very trees the per-runtime presets use, so nothing is built twice. `level`
+# is the optimisation, named as the presets name it.
+#
+#     cmake --preset release && cmake --build --preset release
+#
+# builds the three optimised libraries into demo/bin. Whatever was set here
+# for the core and godot-cpp is handed down; what was not is left to each
+# tree's own default, which is the same one.
+option(LHAT_ALL_RUNTIMES
+    "Build editor, template_debug and template_release together" OFF)
+if(LHAT_ALL_RUNTIMES)
+    include(ExternalProject)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(level debug)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+        set(level fastdebug)
+    else()
+        set(level release)
+    endif()
+    set(forwarded "")
+    foreach(name LHAT_CORE_DIR LHAT_GODOT_CPP_DIR LHAT_GODOT_CPP_TAG)
+        if(DEFINED CACHE{${name}})
+            list(APPEND forwarded "-D${name}=${${name}}")
+        endif()
+    endforeach()
+    foreach(target editor template_debug template_release)
+        ExternalProject_Add(${target}
+            SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+            BINARY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/${target}-${level}"
+            CMAKE_ARGS
+                -G "${CMAKE_GENERATOR}"
+                -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+                -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+                -DGODOTCPP_TARGET=${target}
+                -DLHAT_ALL_RUNTIMES=OFF
+                ${forwarded}
+            # The sub-build is incremental on its own; this only says to ask
+            # it every time rather than once.
+            BUILD_ALWAYS ON
+            INSTALL_COMMAND ""
+        )
+    endforeach()
+    return()
+endif()
+
 # コアは兄弟に在るものをそのまま使う。godot-cpp に対して取っているのと同じ
 # 立場で、取得は存在させる手段でしかない（../godot も ../lua-5.5.1 も同じ並び）。
 set(LHAT_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../lhat"

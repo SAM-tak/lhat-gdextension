@@ -7,73 +7,89 @@
       "hidden": true,
       "binaryDir": "${sourceDir}/build/${presetName}",
       "installDir": "${sourceDir}/install/${presetName}",
+      "generator": "Ninja",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
+
     {
-      "name": "ninja-base",
+      "name": "level-release",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "level-debug",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "level-fastdebug",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+
+    {
+      "name": "release",
+      "displayName": "all three runtimes, optimised -- what to ship",
+      "inherits": ["base", "level-release"],
+      "cacheVariables": { "LHAT_ALL_RUNTIMES": "ON" }
+    },
+    {
+      "name": "debug",
+      "displayName": "all three runtimes, unoptimised with symbols",
+      "inherits": ["base", "level-debug"],
+      "cacheVariables": { "LHAT_ALL_RUNTIMES": "ON" }
+    },
+    {
+      "name": "fastdebug",
+      "displayName": "all three runtimes, optimised with symbols",
+      "inherits": ["base", "level-fastdebug"],
+      "cacheVariables": { "LHAT_ALL_RUNTIMES": "ON" }
+    },
+
+    {
+      "name": "target-editor",
       "hidden": true,
       "inherits": "base",
-      "generator": "Ninja"
+      "cacheVariables": { "GODOTCPP_TARGET": "editor" }
     },
     {
-      "name": "editor",
-      "displayName": "editor (optimised) -- what the editor loads",
-      "inherits": "ninja-base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "GODOTCPP_TARGET": "editor"
-      }
+      "name": "target-template_debug",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": { "GODOTCPP_TARGET": "template_debug" }
     },
     {
-      "name": "template_debug",
-      "displayName": "development (optimised) -- what a debug export loads",
-      "inherits": "ninja-base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "GODOTCPP_TARGET": "template_debug"
-      }
+      "name": "target-template_release",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": { "GODOTCPP_TARGET": "template_release" }
     },
-    {
-      "name": "template_release",
-      "displayName": "shipping (optimised) -- what a release export loads",
-      "inherits": "ninja-base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "GODOTCPP_TARGET": "template_release"
-      }
-    },
-    {
-      "name": "dev",
-      "displayName": "editor, unoptimised with symbols -- for debugging THIS",
-      "inherits": "ninja-base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "GODOTCPP_TARGET": "editor"
-      }
-    }
+
+    { "name": "editor-release", "displayName": "editor, optimised", "inherits": ["target-editor", "level-release"] },
+    { "name": "editor-debug", "displayName": "editor, unoptimised with symbols", "inherits": ["target-editor", "level-debug"] },
+    { "name": "editor-fastdebug", "displayName": "editor, optimised with symbols", "inherits": ["target-editor", "level-fastdebug"] },
+    { "name": "template_debug-release", "displayName": "development, optimised", "inherits": ["target-template_debug", "level-release"] },
+    { "name": "template_debug-debug", "displayName": "development, unoptimised with symbols", "inherits": ["target-template_debug", "level-debug"] },
+    { "name": "template_debug-fastdebug", "displayName": "development, optimised with symbols", "inherits": ["target-template_debug", "level-fastdebug"] },
+    { "name": "template_release-release", "displayName": "shipping, optimised", "inherits": ["target-template_release", "level-release"] },
+    { "name": "template_release-debug", "displayName": "shipping, unoptimised with symbols", "inherits": ["target-template_release", "level-debug"] },
+    { "name": "template_release-fastdebug", "displayName": "shipping, optimised with symbols", "inherits": ["target-template_release", "level-fastdebug"] }
   ],
   "buildPresets": [
-    {
-      "name": "editor",
-      "displayName": "editor (optimised)",
-      "configurePreset": "editor"
-    },
-    {
-      "name": "template_debug",
-      "displayName": "development (optimised)",
-      "configurePreset": "template_debug"
-    },
-    {
-      "name": "template_release",
-      "displayName": "shipping (optimised)",
-      "configurePreset": "template_release"
-    },
-    {
-      "name": "dev",
-      "displayName": "editor, unoptimised with symbols",
-      "configurePreset": "dev"
-    }
+    { "name": "release", "configurePreset": "release" },
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "fastdebug", "configurePreset": "fastdebug" },
+
+    { "name": "editor-release", "configurePreset": "editor-release" },
+    { "name": "editor-debug", "configurePreset": "editor-debug" },
+    { "name": "editor-fastdebug", "configurePreset": "editor-fastdebug" },
+    { "name": "template_debug-release", "configurePreset": "template_debug-release" },
+    { "name": "template_debug-debug", "configurePreset": "template_debug-debug" },
+    { "name": "template_debug-fastdebug", "configurePreset": "template_debug-fastdebug" },
+    { "name": "template_release-release", "configurePreset": "template_release-release" },
+    { "name": "template_release-debug", "configurePreset": "template_release-debug" },
+    { "name": "template_release-fastdebug", "configurePreset": "template_release-fastdebug" }
   ]
 }

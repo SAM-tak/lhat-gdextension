@@ -903,11 +903,11 @@ LhatRuntime.call_member("res://lib/api.lh", "numbers", [5])            # [1,4,9,
 
 ```powershell
 . .\scripts\devshell.ps1
-cmake --preset editor       # 初回は godot-cpp を取得する
-cmake --build --preset editor
+cmake --preset release      # 初回は godot-cpp を取得する
+cmake --build --preset release
 ```
 
-配るものは3つある。Godot は最適化の有無ではなく**どのランタイムが読むか**で
+これで3つとも出る。配るものは3つある。Godot は最適化の有無ではなく**どのランタイムが読むか**で
 呼び分けていて、3つは排他:
 
 | preset | `GODOTCPP_TARGET` | 読むのは | Unity で言えば |
@@ -920,8 +920,11 @@ cmake --build --preset editor
 Godot の `debug` / `release` はランタイムの別であって最適化の別ではなく、
 公式の書き出しテンプレートも両方とも最適化ビルド。
 
-拡張そのもののバグを追うときだけ `dev`（`Debug` + `editor`、最適化なし・
-シンボルあり）。これは配らない。
+`release` / `debug` / `fastdebug` が最適化の段で、それぞれ3つまとめて作る
+（`CMakeLists.txt` の `LHAT_ALL_RUNTIMES`。プリセットは1 configure なので、
+3 configure を束ねるのはそちらの仕事）。1つだけ欲しければ
+`<target>-<level>`、たとえば `cmake --build --preset template_debug-debug`。
+`debug` と `fastdebug` は拡張そのもののバグを追うためのもので、配らない。
 
 出力は `demo/bin/` に直接落ちる:
 
