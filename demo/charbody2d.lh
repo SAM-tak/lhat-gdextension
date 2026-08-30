@@ -1,0 +1,42 @@
+module^charbody_2d
+
+import^godot
+
+# Classic movement for gravity games (platformer, ...).
+@game
+public^let^Charbody2d = def^{
+	self^{
+		abstract^gdobj : godot.CharacterBody2D,
+		# GDScript keeps these as constants; here they are fields the
+		# inspector can edit, which a movement script is the better for.
+		@export speed = 300.0,
+		@export jumpVelocity = -400.0,
+	},
+	override^new = f^obj { self^{ gdobj = obj } },
+	delegate^self^.gdobj,
+
+	_physics_process = p^self^, delta:number^{
+		var^velocity = self^.get_velocity()
+
+		# Add the gravity.
+		if^!self^.is_on_floor() {
+			velocity := velocity + self^.get_gravity() * delta
+		}
+
+		# Handle jump.
+		if^godot.Input.is_action_just_pressed("ui_accept", false^) and^self^.is_on_floor() {
+			velocity := godot.vector2(velocity.x, self^.jumpVelocity)
+		}
+
+		# Get the input direction and handle the movement/deceleration.
+		# As good practice, you should replace UI actions with custom gameplay actions.
+		let^direction = godot.Input.get_axis("ui_left", "ui_right")
+		velocity := godot.vector2(
+			if^direction != 0.0: direction * self^.speed
+			el^: godot.move_toward(velocity.x, 0.0, self^.speed);,
+			velocity.y)
+
+		self^.set_velocity(velocity)
+		self^.move_and_slide()
+	},
+}

@@ -2,7 +2,14 @@
 
 [ext_resource type="Script" uid="uid://dfrc5hayanig4" path="res://spinner.lh" id="1_f7cmv"]
 [ext_resource type="Texture2D" uid="uid://dafff7e5fcm18" path="res://lhat-logo.svg" id="1_mehiu"]
+[ext_resource type="Script" uid="uid://4ttgfbopk6bd" path="res://charbody2d.lh" id="3_i1wwn"]
 [ext_resource type="Script" uid="uid://b4emhyt5rblpk" path="res://shape3dtest.lh" id="3_lt4yx"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ra2i3"]
+size = Vector2(45, 50)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_g4gaj"]
+size = Vector2(20, 2.253377)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ra2i3"]
 
@@ -28,15 +35,38 @@ ambient_light_source = 3
 ambient_light_color = Color(0.22102186, 0.15700972, 0.37133527, 1)
 reflected_light_source = 2
 
-[node name="Node2D" type="Node2D" unique_id=1504794398]
+[node name="Node" type="Node" unique_id=1971658910]
 
-[node name="Spinner" type="Sprite2D" parent="." unique_id=1707680982]
+[node name="Node2D" type="Node2D" parent="." unique_id=295965139]
+
+[node name="Spinner" type="Sprite2D" parent="Node2D" unique_id=1707680982]
 position = Vector2(333, 290)
 texture = ExtResource("1_mehiu")
 script = ExtResource("1_f7cmv")
 speed = 3
 slideSpeed = 200
 metadata/_custom_type_script = "uid://dfrc5hayanig4"
+
+[node name="CharacterBody2D" type="CharacterBody2D" parent="Node2D" unique_id=1639340056]
+position = Vector2(848, 165)
+script = ExtResource("3_i1wwn")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/CharacterBody2D" unique_id=1942876186]
+position = Vector2(0, -25)
+shape = SubResource("RectangleShape2D_ra2i3")
+
+[node name="LhatLogo" type="Sprite2D" parent="Node2D/CharacterBody2D" unique_id=993657147]
+position = Vector2(1, -25)
+scale = Vector2(0.18408565, 0.18408565)
+texture = ExtResource("1_mehiu")
+
+[node name="StaticBody2D" type="StaticBody2D" parent="Node2D" unique_id=1043638506]
+position = Vector2(609, 571)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Node2D/StaticBody2D" unique_id=1129940886]
+position = Vector2(-2.000061, 70)
+scale = Vector2(272.37943, -144.89363)
+shape = SubResource("RectangleShape2D_g4gaj")
 
 [node name="Node3D" type="Node3D" parent="." unique_id=1617989970]
 
@@ -76,8 +106,9 @@ shadow_enabled = true
 
 [node name="Camera3D" type="Camera3D" parent="Node3D" unique_id=1946476289]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.27802062, 2.950708, 4.0094256)
+current = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="Node3D" unique_id=959248431]
 environment = SubResource("Environment_4liu5")
 
-[connection signal="script_changed" from="Spinner" to="Spinner" method="_on_script_changed"]
+[connection signal="script_changed" from="Node2D/Spinner" to="Node2D/Spinner" method="_on_script_changed"]
