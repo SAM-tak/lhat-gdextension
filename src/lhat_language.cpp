@@ -424,9 +424,9 @@ namespace {
 // _update_template_menu), so a row kept under Object is offered for every
 // base and a row kept under Node for every node.
 //
-// Four, because a .lh is one of two things (05 の 3.2) and the one with a
-// module^ is written three ways: worn by a node, worn by a resource, or
-// reached by require^.
+// Four of these are L^'s own -- a .lh is one of two things (05 の 3.2), and
+// the one with a module^ is written three ways: worn by a node, worn by a
+// resource, or reached by require^. The rest are GDScript's ten, ported.
 struct BuiltInTemplate {
     const char *inherit;
     const char *name;
@@ -513,6 +513,234 @@ const char *const editor_script_template =
     "\n"
     "print(\"hello from L^\")\n";
 
+
+// The rest are GDScript's own built-in templates, one for one
+// (modules/gdscript/editor/script_templates), written the way L^ writes
+// them. Where GDScript assigns velocity.x, L^ makes a new Vector2 -- 8.9's
+// values are read by field and replaced whole -- and where GDScript leaves
+// an argument to its default, L^ writes it (13.4).
+const char *const character_body_2d_template =
+    "module^_CLASS_SNAKE_CASE_\n"
+    "\n"
+    "import^godot\n"
+    "\n"
+    "# Classic movement for gravity games (platformer, ...).\n"
+    "@game\n"
+    "public^let^_CLASS_ = def^{\n"
+    "_TS_self^{\n"
+    "_TS__TS_abstract^gdobj : godot._BASE_,\n"
+    "_TS__TS_# GDScript keeps these as constants; here they are fields the\n"
+    "_TS__TS_# inspector can edit, which a movement script is the better for.\n"
+    "_TS__TS_@export speed = 300.0,\n"
+    "_TS__TS_@export jumpVelocity = -400.0,\n"
+    "_TS_},\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
+    "_TS_delegate^self^.gdobj,\n"
+    "\n"
+    "_TS__physics_process = p^self^, delta:number^{\n"
+    "_TS__TS_var^velocity = self^.get_velocity()\n"
+    "\n"
+    "_TS__TS_# Add the gravity.\n"
+    "_TS__TS_if^!self^.is_on_floor() {\n"
+    "_TS__TS__TS_velocity := velocity + self^.get_gravity() * delta\n"
+    "_TS__TS_}\n"
+    "\n"
+    "_TS__TS_# Handle jump.\n"
+    "_TS__TS_if^godot.Input.is_action_just_pressed(\"ui_accept\", false^) and^self^.is_on_floor() {\n"
+    "_TS__TS__TS_velocity := godot.vector2(velocity.x, self^.jumpVelocity)\n"
+    "_TS__TS_}\n"
+    "\n"
+    "_TS__TS_# Get the input direction and handle the movement/deceleration.\n"
+    "_TS__TS_# As good practice, you should replace UI actions with custom gameplay actions.\n"
+    "_TS__TS_let^direction = godot.Input.get_axis(\"ui_left\", \"ui_right\")\n"
+    "_TS__TS_velocity := godot.vector2(\n"
+    "_TS__TS__TS_if^direction != 0.0: direction * self^.speed\n"
+    "_TS__TS__TS_el^: godot.move_toward(velocity.x, 0.0, self^.speed);,\n"
+    "_TS__TS__TS_velocity.y)\n"
+    "\n"
+    "_TS__TS_self^.set_velocity(velocity)\n"
+    "_TS__TS_self^.move_and_slide()\n"
+    "_TS_},\n"
+    "}\n";
+
+const char *const character_body_3d_template =
+    "module^_CLASS_SNAKE_CASE_\n"
+    "\n"
+    "import^godot\n"
+    "\n"
+    "# Classic movement for gravity games (FPS, TPS, ...).\n"
+    "@game\n"
+    "public^let^_CLASS_ = def^{\n"
+    "_TS_self^{\n"
+    "_TS__TS_abstract^gdobj : godot._BASE_,\n"
+    "_TS__TS_# GDScript keeps these as constants; here they are fields the\n"
+    "_TS__TS_# inspector can edit, which a movement script is the better for.\n"
+    "_TS__TS_@export speed = 5.0,\n"
+    "_TS__TS_@export jumpVelocity = 4.5,\n"
+    "_TS_},\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
+    "_TS_delegate^self^.gdobj,\n"
+    "\n"
+    "_TS__physics_process = p^self^, delta:number^{\n"
+    "_TS__TS_var^velocity = self^.get_velocity()\n"
+    "\n"
+    "_TS__TS_# Add the gravity.\n"
+    "_TS__TS_if^!self^.is_on_floor() {\n"
+    "_TS__TS__TS_velocity := velocity + self^.get_gravity() * delta\n"
+    "_TS__TS_}\n"
+    "\n"
+    "_TS__TS_# Handle jump.\n"
+    "_TS__TS_if^godot.Input.is_action_just_pressed(\"ui_accept\", false^) and^self^.is_on_floor() {\n"
+    "_TS__TS__TS_velocity := godot.vector3(velocity.x, self^.jumpVelocity, velocity.z)\n"
+    "_TS__TS_}\n"
+    "\n"
+    "_TS__TS_# Get the input direction and handle the movement/deceleration.\n"
+    "_TS__TS_# As good practice, you should replace UI actions with custom gameplay actions.\n"
+    "_TS__TS_let^input = godot.Input.get_vector(\"ui_left\", \"ui_right\", \"ui_up\", \"ui_down\", -1.0)\n"
+    "_TS__TS_let^direction = (self^.get_basis() * godot.vector3(input.x, 0.0, input.y)).normalized()\n"
+    "_TS__TS_velocity := if^direction.length() > 0.0:\n"
+    "_TS__TS__TS_godot.vector3(direction.x * self^.speed, velocity.y, direction.z * self^.speed)\n"
+    "_TS__TS_el^:\n"
+    "_TS__TS__TS_godot.vector3(godot.move_toward(velocity.x, 0.0, self^.speed), velocity.y,\n"
+    "_TS__TS__TS__TS_godot.move_toward(velocity.z, 0.0, self^.speed));\n"
+    "\n"
+    "_TS__TS_self^.set_velocity(velocity)\n"
+    "_TS__TS_self^.move_and_slide()\n"
+    "_TS_},\n"
+    "}\n";
+
+const char *const editor_plugin_template =
+    "module^_CLASS_SNAKE_CASE_\n"
+    "\n"
+    "import^godot\n"
+    "\n"
+    "# Basic plugin template. Worn by the EditorPlugin the editor makes when\n"
+    "# the plugin is enabled; what it does is implemented rather than called.\n"
+    "@tool\n"
+    "public^let^_CLASS_ = def^{\n"
+    "_TS_self^{ abstract^gdobj : godot._BASE_ },\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
+    "_TS_delegate^self^.gdobj,\n"
+    "\n"
+    "_TS__enable_plugin = p^self^{\n"
+    "_TS__TS_# Add autoloads here.\n"
+    "_TS_},\n"
+    "\n"
+    "_TS__disable_plugin = p^self^{\n"
+    "_TS__TS_# Remove autoloads here.\n"
+    "_TS_},\n"
+    "\n"
+    "_TS__enter_tree = p^self^{\n"
+    "_TS__TS_# Initialization of the plugin goes here.\n"
+    "_TS_},\n"
+    "\n"
+    "_TS__exit_tree = p^self^{\n"
+    "_TS__TS_# Clean-up of the plugin goes here.\n"
+    "_TS_},\n"
+    "}\n";
+
+const char *const import_script_template =
+    "module^_CLASS_SNAKE_CASE_\n"
+    "\n"
+    "import^godot\n"
+    "\n"
+    "# Basic import script template.\n"
+    "@tool\n"
+    "public^let^_CLASS_ = def^{\n"
+    "_TS_self^{ abstract^gdobj : godot._BASE_ },\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
+    "_TS_delegate^self^.gdobj,\n"
+    "\n"
+    "_TS_# Called by the editor when a scene has this script set as the import\n"
+    "_TS_# script in the import tab.\n"
+    "_TS__post_import = f^self^, scene:godot.Node -> godot.Object {\n"
+    "_TS__TS_# Modify the contents of the scene upon import.\n"
+    "_TS__TS_return^scene  # Return the modified root node when you're done.\n"
+    "_TS_},\n"
+    "}\n";
+
+const char *const import_script_bare_template =
+    "module^_CLASS_SNAKE_CASE_\n"
+    "\n"
+    "import^godot\n"
+    "\n"
+    "@tool\n"
+    "public^let^_CLASS_ = def^{\n"
+    "_TS_self^{ abstract^gdobj : godot._BASE_ },\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
+    "_TS_delegate^self^.gdobj,\n"
+    "\n"
+    "_TS__post_import = f^self^, scene:godot.Node -> godot.Object {\n"
+    "_TS__TS_return^scene\n"
+    "_TS_},\n"
+    "}\n";
+
+const char *const rich_text_effect_template =
+    "module^_CLASS_SNAKE_CASE_\n"
+    "\n"
+    "import^godot\n"
+    "\n"
+    "# Base template for rich text effects.\n"
+    "#\n"
+    "# To use this effect:\n"
+    "# - Enable BBCode on a RichTextLabel.\n"
+    "# - Register this effect on the label.\n"
+    "# - Use [_CLASS_SNAKE_CASE_ param=2.0]hello[/_CLASS_SNAKE_CASE_] in text.\n"
+    "@tool\n"
+    "public^let^_CLASS_ = def^{\n"
+    "_TS_self^{\n"
+    "_TS__TS_abstract^gdobj : godot._BASE_,\n"
+    "_TS__TS_# The label reads this off the instance to know the tag.\n"
+    "_TS__TS_bbcode = \"_CLASS_SNAKE_CASE_\",\n"
+    "_TS_},\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
+    "_TS_delegate^self^.gdobj,\n"
+    "\n"
+    "_TS__process_custom_fx = f^self^, charFx:godot.CharFXTransform -> bool^{\n"
+    "_TS__TS_let^env = charFx.get_environment()\n"
+    "_TS__TS_let^param = if^env.has(\"param\"): env.at(\"param\") el^: 1.0;\n"
+    "_TS__TS_return^true^\n"
+    "_TS_},\n"
+    "}\n";
+
+const char *const visual_shader_node_template =
+    "module^_CLASS_SNAKE_CASE_\n"
+    "\n"
+    "import^godot\n"
+    "\n"
+    "# Visual shader's node plugin template. A port type is\n"
+    "# VisualShaderNode.PortType, and PORT_TYPE_SCALAR is 0.\n"
+    "@tool\n"
+    "public^let^_CLASS_ = def^{\n"
+    "_TS_self^{ abstract^gdobj : godot._BASE_ },\n"
+    "_TS_override^new = f^obj { self^{ gdobj = obj } },\n"
+    "_TS_delegate^self^.gdobj,\n"
+    "\n"
+    "_TS__get_name = f^self^ -> string^{ return^\"_CLASS_\" },\n"
+    "_TS__get_category = f^self^ -> string^{ return^\"\" },\n"
+    "_TS__get_description = f^self^ -> string^{ return^\"\" },\n"
+    "_TS__get_return_icon_type = f^self^ -> number^{ return^0 },\n"
+    "\n"
+    "_TS__get_input_port_count = f^self^ -> number^{ return^0 },\n"
+    "_TS__get_input_port_name = f^self^, port:number^ -> string^{ return^\"\" },\n"
+    "_TS__get_input_port_type = f^self^, port:number^ -> number^{ return^0 },\n"
+    "\n"
+    "_TS__get_output_port_count = f^self^ -> number^{ return^1 },\n"
+    "_TS__get_output_port_name = f^self^, port:number^ -> string^{ return^\"result\" },\n"
+    "_TS__get_output_port_type = f^self^, port:number^ -> number^{ return^0 },\n"
+    "\n"
+    "_TS__get_code = f^self^, inputVars:godot.ArrayOfString, outputVars:godot.ArrayOfString,\n"
+    "_TS__TS__TS_mode:number^, type:number^ -> string^{\n"
+    "_TS__TS_return^$\"{outputVars.at(1)} = 0.0;\"\n"
+    "_TS_},\n"
+    "}\n";
+
+// Godot asks per class up the chosen base's chain, so a row kept under Object
+// is offered whatever the base. The editor script is kept there on purpose:
+// it names no base at all -- a .lh with no module^ is one (05 の 3.2), and
+// nothing wears it -- so there is no reason to make a writer find
+// EditorScript in the class tree first. GDScript cannot do this, since its
+// template has to say `extends EditorScript`.
 const BuiltInTemplate built_in_templates[] = {
     {"Node", "Node script", "A class a node wears, and the marks that say so",
      node_template},
@@ -520,8 +748,26 @@ const BuiltInTemplate built_in_templates[] = {
      "Data the inspector edits and a .tres keeps", resource_template},
     {"Object", "Module", "A unit require^ reaches. Nothing wears it",
      module_template},
-    {"EditorScript", "Editor script", "Statements File > Run runs, once",
+    {"Object", "Editor script",
+     "Statements File > Run runs, once. Ignores the base",
      editor_script_template},
+    {"CharacterBody2D", "Basic movement",
+     "Classic movement for gravity games (platformer, ...)",
+     character_body_2d_template},
+    {"CharacterBody3D", "Basic movement",
+     "Classic movement for gravity games (FPS, TPS, ...)",
+     character_body_3d_template},
+    {"EditorPlugin", "Plugin", "Basic plugin template",
+     editor_plugin_template},
+    {"EditorScenePostImport", "Basic import script",
+     "Basic import script template", import_script_template},
+    {"EditorScenePostImport", "No comments",
+     "Basic import script template (no comments)",
+     import_script_bare_template},
+    {"RichTextEffect", "Default", "Base template for rich text effects",
+     rich_text_effect_template},
+    {"VisualShaderNodeCustom", "Basic", "Visual shader's node plugin template",
+     visual_shader_node_template},
 };
 
 }  // namespace
