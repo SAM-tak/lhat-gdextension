@@ -48,6 +48,7 @@ disable_mode = 2
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0058703423, 0)
 shape = SubResource("BoxShape3D_ra2i3")
 script = ExtResource("3_lt4yx")
+speed = 3
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D/RigidBody3D" unique_id=817022800]
 mesh = SubResource("BoxMesh_ra2i3")

@@ -19,6 +19,7 @@ public^let^Shape3Dtest = def^{
 
 	# Once, when the node enters the tree.
 	_ready = p^self^{
+		print("aaaa")
 	},
 
 	# Every frame. `delta` is how long the last one took, in seconds.
