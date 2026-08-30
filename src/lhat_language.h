@@ -13,6 +13,7 @@
 #define LHAT_GODOT_LANGUAGE_H
 
 #include <godot_cpp/classes/script_language_extension.hpp>
+#include <godot_cpp/templates/local_vector.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
@@ -22,6 +23,8 @@
 #include "lhat_host.h"
 
 namespace godot {
+
+class LhatScript;
 
 // Which hatted spellings this host draws apart, and the one table saying so.
 //
@@ -78,10 +81,6 @@ class LhatLanguage : public ScriptLanguageExtension {
     LhatProgram *program = nullptr;
     LhatMachine *machine = nullptr;
 
-    // 14.3 fixes an instance's fields when it is made, so an instance made
-    // before a rebuild is not this world's. Bumped where the machine goes,
-    // and an instance carries the number it was born under.
-    uint64_t generation = 1;
     bool rebuilding = false;  // put_back writes scripts, and a write asks again
 
 protected:
@@ -97,19 +96,17 @@ public:
     // The world, made on the first ask. NULL when there was no memory.
     LhatProgram *world_program();
 
-    // 05 の 5.7: retires every unit and takes each one off the machine, so
-    // that rebuild_world reads the project again without making the world
-    // again. False when there is no world yet.
-    bool retire_every_unit();
     LhatMachine *world_machine() const { return machine; }
     host::Units *world_units() { return &units; }
-    uint64_t world_generation() const { return generation; }
 
-    // Everything a reload does, for every script at once. One .lh saved
-    // retires the whole world, because a unit compiled against another's
-    // published names is compiled against the text that published them --
-    // so the scripts come off, the world is made again, and they go back on.
-    Error rebuild_world(bool keep_state);
+    // 05 の 5.7, through lhat_reload: the texts of `changed` are handed to
+    // the program, which retires what they reach and reads it back; then the
+    // scripts whose unit was among them are taken off, run again and put
+    // back, and every other script is left as it stands. `everything` also
+    // offers every unit the program holds -- for a rescan, where a file no
+    // script is open on may have moved too.
+    Error rebuild_world(const LocalVector<LhatScript *> &changed,
+                        bool everything, bool keep_state);
 
     String _get_name() const override;
     String _get_type() const override;

@@ -180,10 +180,9 @@ LhatMachine *LhatScript::lhat_machine() const
     return language != nullptr ? language->world_machine() : nullptr;
 }
 
-uint64_t LhatScript::lhat_generation() const
+bool LhatScript::lhat_stale() const
 {
-    LhatLanguage *language = LhatLanguage::get_singleton();
-    return language != nullptr ? language->world_generation() : 0;
+    return unit == nullptr || lhat_unit_proto(unit) != ran_body;
 }
 
 const host::Godot *LhatScript::godot() const
@@ -247,15 +246,9 @@ void LhatScript::reload_from_disk(bool keep_state)
 // reads it the same way (reload_scripts saves and restores on every path
 // that removes a script). Threading it through to here made one script's
 // reload throw away every other script's fields.
-void LhatScript::take_off(LocalVector<uint64_t> *wearers,
-                          LocalVector<Dictionary> *held)
+void LhatScript::snapshot(LocalVector<Dictionary> *held) const
 {
     for (const uint64_t &id : worn_by) {
-        wearers->push_back(id);
-    }
-    worn_by.clear();
-
-    for (const uint64_t &id : *wearers) {
         Dictionary was;
         Object *object = ObjectDB::get_instance(ObjectID(id));
         if (object != nullptr) {
@@ -553,7 +546,9 @@ Error LhatScript::_reload(bool keep_state)
     if (language == nullptr) {
         return ERR_UNAVAILABLE;
     }
-    return language->rebuild_world(keep_state);
+    LocalVector<LhatScript *> changed;
+    changed.push_back(this);
+    return language->rebuild_world(changed, false, keep_state);
 }
 
 // What this .lh is, read off the world. The world itself is made once and
@@ -565,6 +560,9 @@ Error LhatScript::reload_now(bool keep_state)
     checked = true;
     valid = false;
     let_go();
+    // Whatever instances were made against the last run are now holding a
+    // self^ of a body the program has let go of; this is what tells them.
+    generation++;
 
     LhatLanguage *language = LhatLanguage::get_singleton();
     LhatProgram *program =
@@ -612,6 +610,7 @@ Error LhatScript::reload_now(bool keep_state)
         editor_script = true;
         entry = lhat_unit_proto(root);
         unit = root;
+        ran_body = entry;
         return OK;
     }
 
@@ -623,6 +622,7 @@ Error LhatScript::reload_now(bool keep_state)
     }
 
     unit = root;
+    ran_body = lhat_unit_proto(root);
     String name;
     String said;
     bool when_worn = false;

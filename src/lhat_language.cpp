@@ -215,56 +215,31 @@ LhatProgram *LhatLanguage::world_program()
     return program;
 }
 
-// 05 の 5.7: every unit is retired and forgotten, and the program and the
-// machine stay. What is read, checked, compiled and run again is the same as
-// it would be if both went -- this is the editor, where a save means the
-// whole project may have moved under it, and not the live edit 5.7 was drawn
-// for. What it saves is the two things that do not depend on any .lh at all.
+// 05 の 5.7, whole, through lhat_reload. A save used to retire every unit
+// and read the whole project back -- invalidate counted what it retired and
+// did not name it, so there was nothing to be selective with. lhat_reload
+// still only counts, but a retired unit's shell comes back with a new proto,
+// and a script remembers the one it ran: that is enough to know which
+// scripts to dress again and which to leave alone.
 //
-// The registration is 11,132 engine methods and the install is what puts them
-// on the machine. Measured, a save with three scripts worn: 176-187 ms of
-// registering and installing against 179-205 ms of actually reading the
-// project, plus 23 ms of tearing the old world down. Making the world again
-// cost as much as the work it was made for.
+// The order matters more than it looks. lhat_reload forgets the retired
+// modules and collects each machine before it returns, and a wearer's
+// fields are read through its instance's self^, which that collection may
+// free. So every wearer's fields are read first, while every instance is
+// still there to read -- reading is cheap, it is the dressing that is not --
+// and only the scripts the reload reached are dressed again.
 //
-// Retiring everything rather than what the save reached is on purpose: it
-// leaves nothing to be told, which is what lhat_program_invalidate does not
-// answer (it counts what it retired and does not name it). The cascade would
-// reach most of a project anyway -- a requirer is retired with what it
-// requires -- and reading a unit that did not change is what the check and
-// compile below would have done in a rebuild.
-bool LhatLanguage::retire_every_unit()
-{
-    if (program == nullptr || machine == nullptr) {
-        return false;
-    }
-    // The walk is taken before anything is retired: invalidate does not move
-    // a unit out of the list, but forgetting one is a write to the machine
-    // and the two are kept apart for the reader's sake rather than the
-    // walker's.
-    for (const LhatUnit *unit = lhat_program_units(program); unit != nullptr;
-         unit = lhat_unit_next(unit)) {
-        lhat_program_invalidate(program, lhat_unit_path(unit));
-    }
-    for (const LhatUnit *unit = lhat_program_units(program); unit != nullptr;
-         unit = lhat_unit_next(unit)) {
-        // 05 の 3.2: a unit that declared no module^ is a script and
-        // registered nothing, so there is nothing under L^.modules to take.
-        const char *named = lhat_unit_module_name(unit);
-        if (named != nullptr) {
-            lhat_machine_forget_unit(machine, named);
-        }
-    }
-    return true;
-}
-
-// The world is read again. 05 の 5.7's invalidate is how, so the program and
-// the machine live through it -- see retire_every_unit above for what that
-// is worth and why every unit goes rather than the ones a save reached.
-Error LhatLanguage::rebuild_world(bool keep_state)
+// A path whose text reads as it did answers 0 from lhat_reload's own
+// invalidate and costs nothing further, so offering every unit on a rescan
+// is a comparison per unit and a reload only for the ones that moved.
+Error LhatLanguage::rebuild_world(const LocalVector<LhatScript *> &changed,
+                                  bool everything, bool keep_state)
 {
     if (rebuilding) {
         return OK;  // put_back writes scripts, and a write can ask again
+    }
+    if (world_program() == nullptr) {
+        return ERR_OUT_OF_MEMORY;
     }
     rebuilding = true;
 
@@ -273,67 +248,49 @@ Error LhatLanguage::rebuild_world(bool keep_state)
     for (LhatScript *const &script : LhatScript::all()) {
         held.push_back(Ref<Script>(script));
     }
-
-    LocalVector<LocalVector<uint64_t>> wearers;
     LocalVector<LocalVector<Dictionary>> fields;
-    wearers.resize(held.size());
     fields.resize(held.size());
     for (uint32_t i = 0; i < held.size(); i++) {
-        Object::cast_to<LhatScript>(held[i].ptr())
-            ->take_off(&wearers[i], &fields[i]);
+        Object::cast_to<LhatScript>(held[i].ptr())->snapshot(&fields[i]);
     }
 
-    // Every instance made against the old bodies is now holding a definition
-    // that has been retired. Nothing here can reach them -- a node owns its
-    // script instance -- so instead the number they were made under stops
-    // matching, and each finds that out before touching what it holds.
-    generation++;
-    if (!retire_every_unit()) {
-        // No world yet, which is the first save after a cold start. The
-        // scripts below make one between them.
-        if (machine != nullptr) {
-            lhat_machine_dispose(machine);
-            machine = nullptr;
-        }
-        if (program != nullptr) {
-            lhat_program_free(program);
-            program = nullptr;
+    // The text as it stands, not the file: the editor reloads while the
+    // buffer is unsaved. Held under the path before the program is asked to
+    // read it back.
+    LocalVector<CharString> paths;
+    for (LhatScript *const &script : changed) {
+        host::hold(&units, script->get_path(), script->source);
+        paths.push_back(host::unit_path(units, script->get_path()).utf8());
+    }
+    if (everything) {
+        for (const LhatUnit *unit = lhat_program_units(program);
+             unit != nullptr; unit = lhat_unit_next(unit)) {
+            paths.push_back(CharString(lhat_unit_path(unit)));
         }
     }
-    units.held.clear();
+    LhatMachine *const machines[] = {machine};
+    for (const CharString &path : paths) {
+        lhat_reload(program, path.get_data(), machines, 1);
+    }
 
+    // What the reload reached, run again and dressed again. What it did not
+    // reach keeps its instances, and its wearers never notice.
     Error said = OK;
-    for (const Ref<Script> &script : held) {
-        Error one = Object::cast_to<LhatScript>(script.ptr())->reload_now(
-            keep_state);
+    for (uint32_t i = 0; i < held.size(); i++) {
+        LhatScript *script = Object::cast_to<LhatScript>(held[i].ptr());
+        if (!script->lhat_stale()) {
+            continue;
+        }
+        LocalVector<uint64_t> wearers;
+        for (const uint64_t &id : script->worn_by) {
+            wearers.push_back(id);
+        }
+        script->worn_by.clear();
+        Error one = script->reload_now(keep_state);
         if (one != OK) {
             said = one;
         }
-    }
-    for (uint32_t i = 0; i < held.size(); i++) {
-        Object::cast_to<LhatScript>(held[i].ptr())
-            ->put_back(wearers[i], fields[i]);
-    }
-
-    // The retired bodies are still there: invalidate frees nothing, on
-    // purpose (a closure made before it keeps running what it was made from).
-    // Everything is wearing a new body by now, so what is left to check is
-    // that the machine holds no closure of an old one -- program.h's own
-    // recipe, where the collection is what makes that true rather than what
-    // reports it.
-    //
-    // Not after every save. A collection was measured at 10-40 ms against a
-    // rebuild of 70, so sweeping each time gave back a third of what the
-    // invalidate path saved. The bodies are left to pile up instead and taken
-    // in one pass once the pile is worth a collection; lhat_program_free
-    // takes whatever is left when the editor goes.
-    static const size_t SWEEP_AT = 200;
-    if (program != nullptr && machine != nullptr &&
-        lhat_program_retired_count(program) >= SWEEP_AT) {
-        lhat_machine_collectgarbage(machine);
-        if (lhat_machine_pending_disposals(machine) == 0) {
-            lhat_program_discard_retired(program);
-        }
+        script->put_back(wearers, fields[i]);
     }
 
     rebuilding = false;
@@ -1230,23 +1187,28 @@ void LhatLanguage::_reload_all_scripts()
     for (LhatScript *const &script : LhatScript::all()) {
         held.push_back(Ref<Script>(script));
     }
+    LocalVector<LhatScript *> changed;
     for (const Ref<Script> &script : held) {
-        Object::cast_to<LhatScript>(script.ptr())->read_source_from_disk();
+        LhatScript *ours = Object::cast_to<LhatScript>(script.ptr());
+        ours->read_source_from_disk();
+        changed.push_back(ours);
     }
-    rebuild_world(true);
+    rebuild_world(changed, true, true);
 }
 
 void LhatLanguage::_reload_scripts(const Array &scripts, bool soft_reload)
 {
     (void)soft_reload;
+    LocalVector<LhatScript *> changed;
     for (int64_t i = 0; i < scripts.size(); i++) {
         Ref<Script> held = scripts[i];
         LhatScript *ours = Object::cast_to<LhatScript>(held.ptr());
         if (ours != nullptr) {
             ours->read_source_from_disk();
+            changed.push_back(ours);
         }
     }
-    rebuild_world(true);
+    rebuild_world(changed, false, true);
 }
 
 // 02 の 18: what a @tool class carries is that it runs while a scene is being

@@ -59,6 +59,16 @@ class LhatScript : public ScriptExtension {
     // holds -- so what a field was written with is asked for by name, and
     // these two are what names it.
     const LhatUnit *unit = nullptr;
+    // 05 の 5.7: the body this script last ran, so that a reload can tell
+    // whether its unit was among the ones retired -- lhat_reload counts what
+    // it retired and does not name it, but a retired unit's shell comes back
+    // with a proto that is not this one. NULL until the first run.
+    const LhatProto *ran_body = nullptr;
+    // Bumped on every run of the unit. An instance carries the number it
+    // was born under, and one born under an earlier number holds a self^ of
+    // a body that is gone. Per script, so that reloading one leaves every
+    // other script's instances as they were.
+    uint64_t generation = 1;
     String klass_name;
     int64_t next_id = 1;
     bool runnable = false;
@@ -163,8 +173,7 @@ class LhatScript : public ScriptExtension {
     // what the inspector put in them. Which is why it is two halves -- the
     // reading has to happen while the instances are still on the machine that
     // made them.
-    void take_off(LocalVector<uint64_t> *wearers,
-                  LocalVector<Dictionary> *held);
+    void snapshot(LocalVector<Dictionary> *held) const;
     void put_back(const LocalVector<uint64_t> &wearers,
                   const LocalVector<Dictionary> &held);
 
@@ -182,7 +191,10 @@ public:
     // it was made under and stops touching what it holds once the two part
     // company -- 14.3 fixes its fields when it is made, and a rebuild makes
     // a machine that knows nothing of them.
-    uint64_t lhat_generation() const;
+    uint64_t lhat_generation() const { return generation; }
+    // Whether the unit this script ran is not the one the program holds now
+    // -- retired by a reload, or never loaded.
+    bool lhat_stale() const;
     LhatValue lhat_class() const { return klass; }
     // 05 の 3.2: whether this file is a run of statements rather than a
     // declaration of a class, which is what the instance side has to know to
