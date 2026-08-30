@@ -23,6 +23,13 @@ endif()
 
 add_subdirectory("${LHAT_GODOT_CPP_DIR}" godot-cpp)
 
+# godot-cpp aims its .pdb at the consuming project's source tree
+# (windows.cmake: ${CMAKE_SOURCE_DIR}/bin), which here would be a bin/ beside
+# this file -- created empty, since a Release build writes no .pdb. Beside
+# the .lib is where it belongs.
+set_target_properties(godot-cpp PROPERTIES
+    PDB_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}/bin>")
+
 # The target with everything PUBLIC on it -- measured to carry the include
 # directories, the definitions and the link options through, the latter with
 # their $<CONFIG:...> intact for the consumer to evaluate.
