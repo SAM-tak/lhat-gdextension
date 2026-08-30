@@ -58,6 +58,13 @@ Dictionary frame_locals(int32_t level);
 void *frame_instance(int32_t level);
 Dictionary frame_members(int32_t level);
 
+// 09 の 3.5: `text` compiled as one input with the frame's names in scope
+// and run on the machine, answered as the text a panel shows. The one place
+// an L^ expression is written to a debugger: the engine's own `evaluate`
+// collects our locals and runs them through Godot's Expression instead, so
+// it reads GDScript and this reads L^.
+String frame_evaluate(int32_t level, const String &text);
+
 }  // namespace host
 }  // namespace godot
 

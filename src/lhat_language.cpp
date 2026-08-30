@@ -1135,6 +1135,19 @@ Dictionary LhatLanguage::_debug_get_globals(int32_t max_subitems,
 // The same frames as one array, which is what the panel reads to draw the
 // list rather than asking level by level. The three keys are the ones
 // ScriptDebugger looks for.
+// Required, and the one door an L^ expression fits through: Godot's own
+// `evaluate` never asks a language to evaluate anything -- it takes the
+// locals and runs them through its Expression. This is what the local
+// debugger's `p` calls.
+String LhatLanguage::_debug_parse_stack_level_expression(
+    int32_t level, const String &expression, int32_t max_subitems,
+    int32_t max_depth)
+{
+    (void)max_subitems;
+    (void)max_depth;
+    return host::frame_evaluate(level, expression);
+}
+
 TypedArray<Dictionary> LhatLanguage::_debug_get_current_stack_info()
 {
     TypedArray<Dictionary> out;

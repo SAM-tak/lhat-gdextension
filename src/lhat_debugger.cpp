@@ -210,6 +210,27 @@ Dictionary frame_members(int32_t level)
     return lhat_instance_members(frame_instance(level));
 }
 
+String frame_evaluate(int32_t level, const String &text)
+{
+    LhatMachine *machine = watching().machine;
+    if (!stopped() || machine == nullptr || level < 0) {
+        return String("(nothing is stopped)");
+    }
+    CharString spelt = text.utf8();
+    LhatValue answer = lhat_nil();
+    char said[512] = {};
+    if (!lhat_machine_evaluate(machine, (size_t)level, spelt.get_data(),
+                               (size_t)spelt.length(), &answer, said,
+                               sizeof(said))) {
+        // 09 の 3.5 tidies the fault away, so the frames are as they were and
+        // the panel keeps working after a bad input.
+        return String::utf8(said);
+    }
+    // What text_of writes is 04 の 11.6改's rendering, which is what a panic
+    // shows and what a person reads.
+    return text_of(answer);
+}
+
 Dictionary frame_locals(int32_t level)
 {
     Dictionary out;

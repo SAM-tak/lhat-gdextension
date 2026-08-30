@@ -204,6 +204,10 @@ public:
     void *_debug_get_stack_level_instance(int32_t level) override;
     Dictionary _debug_get_globals(int32_t max_subitems,
                                   int32_t max_depth) override;
+    String _debug_parse_stack_level_expression(int32_t level,
+                                               const String &expression,
+                                               int32_t max_subitems,
+                                               int32_t max_depth) override;
     TypedArray<Dictionary> _debug_get_current_stack_info() override;
 };
 
