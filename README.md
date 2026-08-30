@@ -934,6 +934,15 @@ liblhat.windows.template_debug.x86_64.dll
 liblhat.windows.template_release.x86_64.dll
 ```
 
+godot-cpp はランタイムごとに**1回だけ**、`build/godot-cpp-<target>/` に
+最適化ありで作られ、`debug` / `fastdebug` の段もそれをリンクする（拡張の
+デバッグビルドは godot-cpp のデバッグビルドではない。両方 `/MT` なので
+リンクは通る——実測済み）。初回の configure が作り、以後は在るものを使う。
+godot-cpp 側を変えたら `build/godot-cpp-<target>/` を消す。
+
+`cmake --build --preset <x> --target clean` は dll のほか `.pdb` `.ilk` `.exp`
+も消す。設定違いを試すときに `demo/bin/` に前の段の pdb が残らない。
+
 この名前は godot-cpp が自分のライブラリに付ける接尾辞から取っている。
 `demo/lhat.gdextension` の `[libraries]` はその綴りをそのまま書いたもの ——
 ただしキーは `debug` / `release` ではなく `editor` / `template_debug` /

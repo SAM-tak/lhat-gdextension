@@ -122,8 +122,51 @@ endif()
 # An existing checkout is used as it stands -- that is what pointing
 # LHAT_GODOT_CPP_DIR somewhere else is for, and the version there is the
 # version the extension is built against, tag or no tag.
-message(STATUS "godot-cpp: building the checkout at ${LHAT_GODOT_CPP_DIR}")
-add_subdirectory("${LHAT_GODOT_CPP_DIR}" godot-cpp)
+#
+# And built once per runtime, not once per tree. Which runtime a library is
+# for is all godot-cpp needs to know, so it is built in cmake/godot-cpp's
+# tree, always optimised, and every level of this tree links the same
+# library: the debug build of the extension is not a debug build of
+# godot-cpp. As with the checkout, building it is only ever how the export
+# comes to exist -- a godot-cpp that changed underneath is rebuilt by
+# removing its tree.
+set(GODOTCPP_TARGET "template_debug" CACHE STRING
+    "Which runtime this is for: editor, template_debug or template_release.")
+set(LHAT_GODOT_CPP_BUILD_DIR
+    "${CMAKE_SOURCE_DIR}/build/godot-cpp-${GODOTCPP_TARGET}"
+    CACHE PATH "Where godot-cpp for this runtime is built, once.")
+if(NOT EXISTS "${LHAT_GODOT_CPP_BUILD_DIR}/godot-cpp-targets.cmake")
+    message(STATUS "godot-cpp: building ${GODOTCPP_TARGET} into ${LHAT_GODOT_CPP_BUILD_DIR}")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND}
+                -S "${CMAKE_CURRENT_SOURCE_DIR}/cmake/godot-cpp"
+                -B "${LHAT_GODOT_CPP_BUILD_DIR}"
+                -G "${CMAKE_GENERATOR}"
+                -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+                -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+                -DGODOTCPP_TARGET=${GODOTCPP_TARGET}
+                -DLHAT_GODOT_CPP_DIR=${LHAT_GODOT_CPP_DIR}
+        RESULT_VARIABLE configured
+    )
+    if(configured EQUAL 0)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} --build "${LHAT_GODOT_CPP_BUILD_DIR}"
+            RESULT_VARIABLE configured
+        )
+    endif()
+    if(NOT configured EQUAL 0)
+        message(FATAL_ERROR "could not build godot-cpp for ${GODOTCPP_TARGET}")
+    endif()
+endif()
+include("${LHAT_GODOT_CPP_BUILD_DIR}/godot-cpp-vars.cmake")
+include("${LHAT_GODOT_CPP_BUILD_DIR}/godot-cpp-targets.cmake")
+# The one library serves every level, so a Debug or RelWithDebInfo tree is
+# told to take the Release location rather than look for one of its own.
+set_target_properties(prebuilt::godot-cpp PROPERTIES
+    MAP_IMPORTED_CONFIG_DEBUG Release
+    MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
+add_library(godot-cpp ALIAS prebuilt::godot-cpp)
 
 # ---- What linking a static C library into a shared library asks for --------
 # Both of these are about `lhat` having been defined long before godot-cpp was
@@ -187,7 +230,7 @@ endif()
 # The engine reads the platform, the Godot target and the architecture out of
 # the file name, and godot-cpp already assembles that suffix for its own
 # library. Taking it from there is what keeps demo/lhat.gdextension right.
-get_target_property(LHAT_GD_SUFFIX godot-cpp GODOTCPP_SUFFIX)
+set(LHAT_GD_SUFFIX "${GODOTCPP_SUFFIX}")  # from godot-cpp-vars.cmake
 set(LHAT_GD_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/demo/bin")
 
 set_target_properties(lhat_gdextension PROPERTIES
@@ -208,4 +251,11 @@ set_target_properties(lhat_gdextension PROPERTIES
 
     PREFIX "lib"
     OUTPUT_NAME "lhat${LHAT_GD_SUFFIX}"
+
+    # What the linker leaves beside the library that CMake's clean does not
+    # know about -- measured: `--target clean` took the .dll and the .lib and
+    # left these three, and a .pdb from a debug level would then sit next to
+    # whatever optimised library replaced the .dll.
+    ADDITIONAL_CLEAN_FILES
+        "${LHAT_GD_BIN_DIR}/liblhat${LHAT_GD_SUFFIX}.pdb;${LHAT_GD_BIN_DIR}/liblhat${LHAT_GD_SUFFIX}.ilk;${LHAT_GD_BIN_DIR}/lhat${LHAT_GD_SUFFIX}.exp"
 )
