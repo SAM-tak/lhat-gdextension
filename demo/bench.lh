@@ -1,0 +1,92 @@
+module^bench
+
+import^godot
+
+# One engine call, written every way the boundary offers, against the same
+# call from GDScript with the type known. Run with:
+#
+#     godot --headless --path demo --script res://bench.gd --quit-after 600
+
+@game
+public^let^Bench = def^{
+	self^{ abstract^gdobj : godot.Sprite2D },
+	override^new = f^obj:godot.Sprite2D { self^{ gdobj = obj } },
+	delegate^self^.gdobj,
+
+	# By name: what every call cost before there was a bind. Object.set is
+	# vararg-free but takes any^, so this is a String, a StringName and a
+	# Variant built per call before ClassDB is even asked.
+	setByName = p^self^, times:number^{
+		var^turn = 0.0
+		for^i from^1 to^times {
+			turn += 0.001
+			self^.gdobj.set("rotation", turn)
+		}
+	},
+
+	# Straight at the handle: the bind, then the ptrcall.
+	setDirect = p^self^, times:number^{
+		var^turn = 0.0
+		for^i from^1 to^times {
+			turn += 0.001
+			self^.gdobj.set_rotation(turn)
+		}
+	},
+
+	# Through delegate^: the same, one more name lookup on the way.
+	setDelegated = p^self^, times:number^{
+		var^turn = 0.0
+		for^i from^1 to^times {
+			turn += 0.001
+			self^.set_rotation(turn)
+		}
+	},
+
+	getDirect = f^self^, times:number^ -> number^{
+		var^sum = 0.0
+		for^i from^1 to^times {
+			sum += self^.gdobj.get_rotation()
+		}
+		return^sum
+	},
+
+	getDelegated = f^self^, times:number^ -> number^{
+		var^sum = 0.0
+		for^i from^1 to^times {
+			sum += self^.get_rotation()
+		}
+		return^sum
+	},
+
+	# An L^ member that answers a constant: the call itself, with no boundary
+	# on the other side of it. What is left over is the boundary's own cost.
+	nothing = f^self^ -> number^{ 1 },
+
+	callLhat = f^self^, times:number^ -> number^{
+		var^seen = 0
+		for^i from^1 to^times {
+			seen += self^.nothing()
+		}
+		return^seen
+	},
+
+	# isValid is the ObjectDB lookup and nothing else -- the handle holds an
+	# instance id rather than a pointer, so every call through the boundary
+	# pays this before it does anything.
+	valid = f^self^, times:number^ -> number^{
+		var^seen = 0
+		for^i from^1 to^times {
+			if^self^.isValid() { seen += 1 }
+		}
+		return^seen
+	},
+
+	# The loop with nothing in it, so the engine call can be told from what
+	# it takes to get round the loop at all.
+	spin = p^self^, times:number^{
+		var^turn = 0.0
+		for^i from^1 to^times {
+			turn += 0.001
+		}
+	},
+}
