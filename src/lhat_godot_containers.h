@@ -65,6 +65,10 @@ struct BoundContainer {
 // The typed arrays, generated from what the bound methods ask for.
 extern BoundContainer typed_arrays[];
 extern const size_t typed_array_count;
+// The ones whose element is an editor class, which an exported game has no
+// type for -- declared only where has_editor_api() says there is one.
+extern BoundContainer editor_typed_arrays[];
+extern const size_t editor_typed_array_count;
 
 // Registers godot.Array, godot.Dictionary and every typed array under the
 // first. Before any checking (05 の 8.7).

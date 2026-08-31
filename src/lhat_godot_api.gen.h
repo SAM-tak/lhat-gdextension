@@ -32,6 +32,14 @@ bool register_godot_classes(LhatProgram *program, Godot *module);
 // ordinary order rather than a late one.
 bool register_godot_api(LhatProgram *program, Godot *module);
 
+// Whether this build has the editor API at all. An editor binary does --
+// including the game it launches, which is the same binary -- and an
+// exported template does not. What was registered for the editor is skipped
+// there rather than declared against a class that is not present, and the
+// typed arrays whose element is an editor class go the same way
+// (register_containers).
+bool has_editor_api();
+
 }  // namespace host
 }  // namespace godot
 

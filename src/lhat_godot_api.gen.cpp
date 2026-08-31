@@ -63089,8 +63089,6 @@ BoundContainer typed_arrays[] = {
      Variant::OBJECT, "InputEvent", nullptr},
     {"ArrayOfMesh", "godot.Mesh", "Array",
      Variant::OBJECT, "Mesh", nullptr},
-    {"ArrayOfScriptEditorBase", "godot.ScriptEditorBase", "Array",
-     Variant::OBJECT, "ScriptEditorBase", nullptr},
     {"ArrayOfScript", "godot.Script", "Array",
      Variant::OBJECT, "Script", nullptr},
     {"ArrayOfScriptBacktrace", "godot.ScriptBacktrace", "Array",
@@ -63101,8 +63099,15 @@ BoundContainer typed_arrays[] = {
      Variant::RECT2, nullptr, nullptr},
 };
 
+BoundContainer editor_typed_arrays[] = {
+    {"ArrayOfScriptEditorBase", "godot.ScriptEditorBase", "Array",
+     Variant::OBJECT, "ScriptEditorBase", nullptr},
+};
+
 const size_t typed_array_count =
     sizeof(typed_arrays) / sizeof(typed_arrays[0]);
+const size_t editor_typed_array_count =
+    sizeof(editor_typed_arrays) / sizeof(editor_typed_arrays[0]);
 
 // Whether this build has the editor API at all. An editor binary
 // does -- including the game it launches, which is the same

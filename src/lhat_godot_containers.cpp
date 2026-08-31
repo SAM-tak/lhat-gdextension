@@ -1,5 +1,7 @@
 #include "lhat_godot_containers.h"
 
+#include "lhat_godot_api.gen.h"
+
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/node_path.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
@@ -744,6 +746,17 @@ bool register_containers(LhatProgram *program, Godot *module)
     }
     for (size_t i = 0; i < typed_array_count; i++) {
         if (!declare_array(program, module, &typed_arrays[i])) {
+            return false;
+        }
+    }
+    // 8.8改: an array of an editor class names a type only an editor binary
+    // registered, so it leaves with the editor classes. Declaring one in an
+    // exported game failed here and took the whole program with it.
+    if (!has_editor_api()) {
+        return true;
+    }
+    for (size_t i = 0; i < editor_typed_array_count; i++) {
+        if (!declare_array(program, module, &editor_typed_arrays[i])) {
             return false;
         }
     }

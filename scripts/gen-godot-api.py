@@ -492,26 +492,41 @@ def write(api, classes, wanted, rows, arrays, left_out):
     say("// under godot.Array. The element type is the checker's; the tag is")
     say("// what a value coming back is told apart by, found from what the")
     say("// engine says its elements are (lhat_godot_containers.cpp).")
-    say("BoundContainer typed_arrays[] = {")
-    for spelling in arrays:
-        element = spelling[len("typedarray::"):]
-        written = kind_of(element, classes, wanted)
-        if written is None:
-            sys.exit("nothing stands for an element of type " + element)
-        if element in classes:
-            kind, named = "OBJECT", '"%s"' % element
-        else:
-            if element not in VARIANT_KIND and element not in HOSTVALUE                     and element not in HOSTDATA:
-                sys.exit("no Variant kind for an element of type " + element)
-            kind = (VARIANT_KIND.get(element) or HOSTVALUE.get(element) or
-                    HOSTDATA.get(element))
-            named = "nullptr"
-        say('    {"%s", "%s", "Array",' % (array_named(element), written[1]))
-        say("     Variant::%s, %s, nullptr}," % (kind, named))
-    say("};")
-    say("")
+    # An array of an editor class leaves with the editor classes, for the
+    # reason a row does: an exported game has neither, and declaring one
+    # whose element type was never registered fails the whole registration.
+    def editor_element(element):
+        return (element in classes and
+                classes[element]["api_type"] != "core")
+
+    for label, editor in (("typed_arrays", False),
+                          ("editor_typed_arrays", True)):
+        say("BoundContainer %s[] = {" % label)
+        for spelling in arrays:
+            element = spelling[len("typedarray::"):]
+            if editor_element(element) != editor:
+                continue
+            written = kind_of(element, classes, wanted)
+            if written is None:
+                sys.exit("nothing stands for an element of type " + element)
+            if element in classes:
+                kind, named = "OBJECT", '"%s"' % element
+            else:
+                if element not in VARIANT_KIND and element not in HOSTVALUE                         and element not in HOSTDATA:
+                    sys.exit("no Variant kind for an element of type "
+                             + element)
+                kind = (VARIANT_KIND.get(element) or HOSTVALUE.get(element) or
+                        HOSTDATA.get(element))
+                named = "nullptr"
+            say('    {"%s", "%s", "Array",'
+                % (array_named(element), written[1]))
+            say("     Variant::%s, %s, nullptr}," % (kind, named))
+        say("};")
+        say("")
     say("const size_t typed_array_count =")
     say("    sizeof(typed_arrays) / sizeof(typed_arrays[0]);")
+    say("const size_t editor_typed_array_count =")
+    say("    sizeof(editor_typed_arrays) / sizeof(editor_typed_arrays[0]);")
     say("")
     say("// Whether this build has the editor API at all. An editor binary")
     say("// does -- including the game it launches, which is the same")
