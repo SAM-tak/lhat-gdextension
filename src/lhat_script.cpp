@@ -171,6 +171,22 @@ const HashSet<LhatScript *> &LhatScript::all()
     return loaded;
 }
 
+// The set above is kept by the constructor and the destructor, so what it
+// holds is exactly what is still alive -- which is the weak ledger this
+// question wants and the reason there is no second one.
+LhatScript *LhatScript::at_path(const String &path)
+{
+    if (path.is_empty()) {
+        return nullptr;
+    }
+    for (LhatScript *const &script : loaded) {
+        if (script->get_path() == path) {
+            return script;
+        }
+    }
+    return nullptr;
+}
+
 // 05 の 5.3: the world is the language's. A script that asks before one has
 // been made gets nothing rather than making one behind the language's back --
 // reload_now is where a world comes into being, and everything else reads it.
@@ -614,6 +630,17 @@ Error LhatScript::reload_now(bool keep_state)
         unit = root;
         ran_body = entry;
         return OK;
+    }
+
+    // 05 の 5.3: a unit's body begins by asking the registry for itself and
+    // answering whatever is there, which is what makes a unit load once.
+    // Running it a second time -- a reload, or a fresh script standing for a
+    // path whose last one went away -- would hand back the table the body
+    // before it left, and with it a def^ of a body that has been retired.
+    // vm.h says to say so here, and this is the only place a unit is run
+    // again.
+    if (const char *named = lhat_unit_module_name(root)) {
+        lhat_machine_forget_unit(machine, named);
     }
 
     LhatRunResult ran = lhat_run(machine, lhat_unit_proto(root));

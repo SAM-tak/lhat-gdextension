@@ -244,6 +244,10 @@ public:
 
     // Every script this program has loaded, for the reload that names none.
     static const HashSet<LhatScript *> &all();
+    // 05 の 5.3: the one script standing for this path, or NULL. One machine
+    // means one L^.modules, so two scripts of one path would both run the
+    // unit and take the registration from each other.
+    static LhatScript *at_path(const String &path);
 
     // What the conversions need to carry a handle across.
     const host::Godot *godot() const;
