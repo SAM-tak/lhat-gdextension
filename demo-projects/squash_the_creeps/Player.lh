@@ -1,0 +1,103 @@
+# The player, in L^. The GDScript this replaces was Player.gd.
+
+module^ squash.player
+
+import^ godot
+
+@game @export_class
+public^let^Player = def^{
+	self^{
+		abstract^gdobj : godot.CharacterBody3D,
+		@node("AnimationPlayer") abstract^animation : godot.AnimationPlayer,
+
+		# How fast the player moves in meters per second.
+		@export speed = 14.0,
+		# Vertical impulse applied upon jumping, in meters per second.
+		@export jumpImpulse = 20.0,
+		# Vertical impulse applied upon bouncing over a mob.
+		@export bounceImpulse = 16.0,
+		# The downward acceleration when in the air.
+		@export fallAcceleration = 75.0,
+	},
+
+	override^new = f^obj { self^{ gdobj = obj } },
+
+	delegate^self^.gdobj,
+
+	@signal hit = p^self^{},
+
+	_physics_process = p^self^, delta:number^{
+		var^direction = godot.vector3(0.0, 0.0, 0.0)
+		if^godot.Input.is_action_pressed("move_right", false^) {
+			direction.x += 1.0
+		}
+		if^godot.Input.is_action_pressed("move_left", false^) {
+			direction.x -= 1.0
+		}
+		if^godot.Input.is_action_pressed("move_back", false^) {
+			direction.z += 1.0
+		}
+		if^godot.Input.is_action_pressed("move_forward", false^) {
+			direction.z -= 1.0
+		}
+
+		if^direction.length() > 0.0 {
+			# Setting the basis turns the character; the animation keeps up.
+			direction := direction.normalized()
+			self^.set_basis(godot.basisLookingAt(direction,
+			                                     godot.vector3(0.0, 1.0, 0.0),
+			                                     false^))
+			self^.animation.set_speed_scale(4.0)
+		else^:
+			self^.animation.set_speed_scale(1.0)
+		}
+
+		var^velocity = self^.get_velocity()
+		velocity.x := direction.x * self^.speed
+		velocity.z := direction.z * self^.speed
+
+		if^self^.is_on_floor() and^ godot.Input.is_action_just_pressed("jump", false^) {
+			velocity.y += self^.jumpImpulse
+		}
+
+		# Gravity every frame, so the body always meets the ground when it
+		# moves -- which is what makes is_on_floor answer.
+		velocity.y -= self^.fallAcceleration * delta
+		self^.set_velocity(velocity)
+		self^.move_and_slide()
+
+		# Landing on top of a mob kills it and bounces. move_and_slide may
+		# move the body several times in one frame, so every slide is asked
+		# about; a frame with no slides runs none of this.
+		let^up = godot.vector3(0.0, 1.0, 0.0)
+		for^i from^ 0 to^ self^.get_slide_collision_count() - 1 {
+			let^met = self^.get_slide_collision(i)
+			let^other = met.get_collider(0)
+			if^!(other fits^godot.Node) { continue^ }
+			if^!other.is_in_group("mob") { continue^ }
+			if^up.dot(met.get_normal(0)) > 0.1 {
+				other.call("squash")
+				var^after = self^.get_velocity()
+				after.y := self^.bounceImpulse
+				self^.set_velocity(after)
+				# Once only: a second time would award two points for the
+				# one mob.
+				break^
+			}
+		}
+
+		# What makes the character follow an arc while jumping.
+		var^turn = self^.get_rotation()
+		turn.x := godot.PI() / 6.0 * self^.get_velocity().y / self^.jumpImpulse
+		self^.set_rotation(turn)
+	},
+
+	die = p^self^{
+		self^.hit()
+		self^.queue_free()
+	},
+
+	_on_MobDetector_body_entered = p^self^, body:godot.Node3D{
+		self^.die()
+	},
+}

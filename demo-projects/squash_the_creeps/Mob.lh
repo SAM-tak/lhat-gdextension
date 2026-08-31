@@ -1,0 +1,63 @@
+# The mob, in L^. The GDScript this replaces was Mob.gd.
+
+module^ squash.mob
+
+import^ godot
+
+@game @export_class
+public^let^Mob = def^{
+	self^{
+		abstract^gdobj : godot.CharacterBody3D,
+		@node("AnimationPlayer") abstract^animation : godot.AnimationPlayer,
+
+		# Minimum speed of the mob in meters per second.
+		@export minSpeed = 10.0,
+		# Maximum speed of the mob in meters per second.
+		@export maxSpeed = 18.0,
+	},
+
+	override^new = f^obj { self^{ gdobj = obj } },
+
+	delegate^self^.gdobj,
+
+	# Emitted when the player jumped on the mob.
+	@signal squashed = p^self^{},
+
+	_physics_process = p^self^, delta:number^{
+		self^.move_and_slide()
+	},
+
+	# Called from Main through godot.Object.call, whose tail is any^ -- so
+	# the caller boxes each Vector3 (05 の 8.9) and what arrives here is the
+	# value, which a parameter is allowed to be.
+	initialize = p^self^, startPosition:godot.Vector3,
+	                     playerPosition:godot.Vector3{
+		# The player's height is ignored, so that the mob's orientation is
+		# not shifted if the mob spawns while the player is jumping.
+		let^up = godot.vector3(0.0, 1.0, 0.0)
+		let^target = godot.vector3(playerPosition.x, startPosition.y,
+		                           playerPosition.z)
+		self^.look_at_from_position(startPosition, target, up, false^)
+
+		# Turned randomly within 45 degrees either way, so that it does not
+		# head straight for the player.
+		self^.rotate_y(godot.randf_range(-godot.PI() / 4.0, godot.PI() / 4.0))
+
+		let^speed = godot.randf_range(self^.minSpeed, self^.maxSpeed)
+		# A forward velocity first, which is the speed; then turned by the
+		# mob's own Y rotation so it moves the way it is looking.
+		let^forward = godot.vector3(0.0, 0.0, -1.0) * speed
+		self^.set_velocity(forward.rotated(up, self^.get_rotation().y))
+
+		self^.animation.set_speed_scale(speed / self^.minSpeed)
+	},
+
+	squash = p^self^{
+		self^.squashed()
+		self^.queue_free()
+	},
+
+	_on_visible_on_screen_notifier_screen_exited = p^self^{
+		self^.queue_free()
+	},
+}

@@ -1,0 +1,22 @@
+# The score, in L^. The GDScript this replaces was ScoreLabel.gd.
+
+module^ squash.scorelabel
+
+import^ godot
+
+@game @export_class
+public^let^ScoreLabel = def^{
+	self^{
+		abstract^gdobj : godot.Label,
+		score = 0,
+	},
+
+	override^new = f^obj { self^{ gdobj = obj } },
+
+	delegate^self^.gdobj,
+
+	_on_Mob_squashed = p^self^{
+		self^.score += 1
+		self^.set_text($"Score: {self^.score}")
+	},
+}
