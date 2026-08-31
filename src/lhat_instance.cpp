@@ -712,10 +712,14 @@ void dress_node_fields(Instance *it)
         it->dressed = true;  // not a node; there is nothing to reach through
         return;
     }
-    if (!owner->is_inside_tree()) {
-        return;  // too early to ask; the next call tries again
-    }
-    it->dressed = true;
+    // A path is asked of the node itself, not of the tree, so a child put
+    // there by the scene answers before the parent has entered anything --
+    // which is what $Foo does in GDScript, and what a mob told to initialize
+    // itself before add_child needs. Where a path answers nothing, the tree
+    // says whether that is early or wrong: outside it the next call tries
+    // again, inside it there is nothing further to wait for.
+    const bool settled = owner->is_inside_tree();
+    bool all = true;
     LhatMachine *machine = it->script->lhat_machine();
     LhatTable *table = (LhatTable *)lhat_as_object(it->self);
     CharString klass = script->lhat_class_name().utf8();
@@ -733,10 +737,14 @@ void dress_node_fields(Instance *it)
 
         Node *found = owner->get_node_or_null(NodePath(path));
         if (found == nullptr) {
+            if (!settled) {
+                all = false;  // the scene may not have finished building
+                continue;
+            }
             UtilityFunctions::push_error(host::problem(
                 script->get_path(),
                 String("@node(\"") + path + "\") on " + field +
-                    " names no node under " + owner->get_path()));
+                    " names no node under " + String(owner->get_name())));
             continue;
         }
         // The declaration is a promise about what stands there. Saying so
@@ -766,6 +774,7 @@ void dress_node_fields(Instance *it)
         bool refused = false;
         lhat_machine_table_set(machine, table, key, held, &refused);
     }
+    it->dressed = all;
 }
 
 void drive_await(Instance *it, int64_t id)

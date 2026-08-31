@@ -450,6 +450,26 @@ void make_pair(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
+// Basis::looking_at is the engine's own static, and a value type has no
+// place to hang one -- so it is a maker of this module beside godot.basis,
+// which is what every other way of building one already is.
+void make_basis_looking_at(LhatMachine *machine, void *context,
+                           const LhatValue *arguments, size_t count,
+                           LhatValue *answers, int *answer_count)
+{
+    const Godot *module = module_of(context);
+    Vector3 target;
+    Vector3 up;
+    if (count < 3 || !taken(arguments[0], module, &target) ||
+        !taken(arguments[1], module, &up)) {
+        return;
+    }
+    answers[0] = answer(machine, module,
+                        Basis::looking_at(target, up,
+                                          lhat_as_bool(arguments[2])));
+    *answer_count = 1;
+}
+
 template <typename T, typename P>
 void make_triple(LhatMachine *machine, void *context,
                  const LhatValue *arguments, size_t count,
@@ -615,7 +635,26 @@ void turned(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
-// f^self^, T, number^ -> T
+// f^self^, T, number^ -> T. A turn in 2D takes an angle and a turn in 3D an
+// axis beside it, so the two do not share a shape.
+template <typename T, T (*Get)(const T &, const T &, double)>
+void turned_about(LhatMachine *machine, void *context,
+                  const LhatValue *arguments, size_t count,
+                  LhatValue *answers, int *answer_count)
+{
+    const Godot *module = module_of(context);
+    T held;
+    T axis;
+    if (count < 3 || !taken(arguments[0], module, &held) ||
+        !taken(arguments[1], module, &axis)) {
+        return;
+    }
+    answers[0] = answer(machine, module,
+                        Get(held, axis, number_of(arguments[2])));
+    *answer_count = 1;
+}
+
+// f^self^, T, T, number^ -> T
 template <typename T, T (*Get)(const T &, const T &, double)>
 void blended(LhatMachine *machine, void *context,
              const LhatValue *arguments, size_t count,
@@ -720,6 +759,11 @@ template <typename T> T v_clamp(const T &v, const T &low, const T &high)
 template <typename T> double v_distance_squared(const T &a, const T &b)
 {
     return (double)a.distance_squared_to(b);
+}
+
+Vector3 v3_rotated(const Vector3 &v, const Vector3 &axis, double by)
+{
+    return v.rotated(axis, (real_t)by);
 }
 
 double v2_angle(const Vector2 &v) { return v.angle(); }
@@ -1022,6 +1066,16 @@ bool turn(LhatProgram *program, Godot *module, const char *name)
 }
 
 template <typename T, T (*Get)(const T &, const T &, double)>
+bool turn_about(LhatProgram *program, Godot *module, const char *name)
+{
+    String path = String("godot.") + Named<T>::spelling();
+    return member(program, Named<T>::spelling(), name,
+                  kept(module, String("f^self^, ") + path +
+                                   ", number^ -> " + path + ";"),
+                  turned_about<T, Get>, module);
+}
+
+template <typename T, T (*Get)(const T &, const T &, double)>
 bool blend(LhatProgram *program, Godot *module, const char *name)
 {
     String path = String("godot.") + Named<T>::spelling();
@@ -1262,6 +1316,9 @@ bool register_values(LhatProgram *program, Godot *module)
            maker(program, module, "basis",
                  "godot.Vector3, godot.Vector3, godot.Vector3", "Basis",
                  make_triple<Basis, Vector3>) &&
+           maker(program, module, "basisLookingAt",
+                 "godot.Vector3, godot.Vector3, bool^", "Basis",
+                 make_basis_looking_at) &&
 
            declare<Transform3D>(program, module) &&
            part<Transform3D, Basis, t3d_basis>(program, module, "basis") &&
@@ -1328,6 +1385,7 @@ bool register_values(LhatProgram *program, Godot *module)
            measure_same<Vector2, v2_cross>(program, module, "cross") &&
            turn<Vector2, v2_rotated>(program, module, "rotated") &&
            join_same<Vector3, v3_cross>(program, module, "cross") &&
+           turn_about<Vector3, v3_rotated>(program, module, "rotated") &&
 
            part<Color, Color, color_inverted>(program, module, "inverted") &&
            measure<Color, color_luminance>(program, module, "luminance") &&
