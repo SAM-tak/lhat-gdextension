@@ -64,6 +64,13 @@ bool value_taken(LhatValue held, const Godot *module, Color *out);
 LhatValue value_of_variant(LhatMachine *machine, const Godot *module,
                            const Variant &held, bool *found);
 
+// 05 の 8.9改: the same, placed in the caller's own room. The scratch above
+// holds one value and a call may take several arguments, so an argument gets
+// a room of its own -- which the caller keeps until the call returns, since
+// the machine widens the value out of it into the callee's frame.
+LhatValue value_placed_from_variant(const Godot *module, const Variant &held,
+                                    LhatHostValueRoom *room, bool *found);
+
 // 05 の 8.9: a zero of one of the value types, named by its Variant kind.
 // What a container answers where the element is not there: a signature that
 // says godot.Vector2i has no nil^ to give back, so it gives back the value

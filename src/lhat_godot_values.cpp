@@ -122,6 +122,19 @@ LhatValue answer(LhatMachine *machine, const Godot *module, const T &value)
                : lhat_nil();
 }
 
+// 05 の 8.9改: the same value in the caller's own room rather than the
+// machine's scratch. The scratch holds one answer, which is all a call can
+// make -- but a call may take several arguments, and each of those needs a
+// place of its own that stands until the call returns.
+template <typename T>
+LhatValue placed(const Godot *module, const T &value, LhatHostValueRoom *room)
+{
+    LhatValue out = lhat_nil();
+    return lhat_place_hostvalue(tag_of<T>(module), &value, room, &out)
+               ? out
+               : lhat_nil();
+}
+
 // The bytes back, checked against the tag: 8.9 makes that the same double
 // check 8.8 makes over a pointer, which is what stops a Vector3 reaching the
 // C that expects a Color.
@@ -1449,6 +1462,36 @@ LhatValue value_of_variant(LhatMachine *machine, const Godot *module,
         LHAT_GODOT_ANSWER(Projection);
         LHAT_GODOT_ANSWER(RID);
 #undef LHAT_GODOT_ANSWER
+        default:
+            *found = false;
+            return lhat_nil();
+    }
+}
+
+LhatValue value_placed_from_variant(const Godot *module, const Variant &held,
+                                    LhatHostValueRoom *room, bool *found)
+{
+    *found = true;
+    switch (held.get_type()) {
+#define LHAT_GODOT_PLACE(T_)         case Named<T_>::kind:             return placed<T_>(module, (T_)held, room)
+        LHAT_GODOT_PLACE(Vector2);
+        LHAT_GODOT_PLACE(Vector2i);
+        LHAT_GODOT_PLACE(Vector3);
+        LHAT_GODOT_PLACE(Vector3i);
+        LHAT_GODOT_PLACE(Vector4);
+        LHAT_GODOT_PLACE(Vector4i);
+        LHAT_GODOT_PLACE(Color);
+        LHAT_GODOT_PLACE(Quaternion);
+        LHAT_GODOT_PLACE(Rect2);
+        LHAT_GODOT_PLACE(Rect2i);
+        LHAT_GODOT_PLACE(AABB);
+        LHAT_GODOT_PLACE(Plane);
+        LHAT_GODOT_PLACE(Transform2D);
+        LHAT_GODOT_PLACE(Basis);
+        LHAT_GODOT_PLACE(Transform3D);
+        LHAT_GODOT_PLACE(Projection);
+        LHAT_GODOT_PLACE(RID);
+#undef LHAT_GODOT_PLACE
         default:
             *found = false;
             return lhat_nil();

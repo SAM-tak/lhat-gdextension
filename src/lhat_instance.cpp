@@ -864,36 +864,26 @@ void instance_call(GDExtensionScriptInstanceDataPtr data,
     // inside the interpreter loop, and what is built here is reachable only
     // once it is handed over (see lhat_variant.h).
     LocalVector<LhatValue> converted;
-    int values = 0;  // 8.9 allows one host value across a call, and no more
+    // 05 の 8.9改: a host value is wider than a slot, so it is built in room
+    // of the caller's rather than in the machine's single answer scratch --
+    // one room per argument, all of them standing until the call returns,
+    // which is what lets a member take two Vector3s.
+    LocalVector<LhatHostValueRoom> rooms;
+    rooms.resize((uint32_t)count);
     for (GDExtensionInt i = 0; i < count; i++) {
         const Variant &given = *reinterpret_cast<const Variant *>(arguments[i]);
         LhatValue held = lhat_nil();
         if (!host::from_variant(machine, given, &held,
                                 it->script->godot())) {
-            // 05 の 8.9: from_variant leaves the value types alone, because
-            // what it makes may be written into a table or an any^ and one
-            // of those may not. An argument is neither -- it is a place in
-            // the frame about to be entered, which is exactly where a host
-            // value is allowed to be.
+            // from_variant leaves the value types alone, because what it
+            // makes may be written into a table or an any^ and 8.9 bars one
+            // from either. An argument is neither -- it is a place in the
+            // frame about to be entered, which is exactly where a host value
+            // is allowed to be.
             bool valued = false;
-            held = host::value_of_variant(machine, it->script->godot(), given,
-                                          &valued);
+            held = host::value_placed_from_variant(
+                it->script->godot(), given, &rooms[(uint32_t)i], &valued);
             if (!valued) {
-                error->error = GDEXTENSION_CALL_ERROR_INVALID_ARGUMENT;
-                error->argument = (int32_t)i;
-                error->expected = 0;
-                return;
-            }
-            // The machine keeps room for one of these at a time (vm.h at
-            // lhat_make_hostvalue), so a second would quietly overwrite the
-            // first. Saying so beats handing over a Vector2 that is really
-            // the other one.
-            if (++values > 1) {
-                UtilityFunctions::push_error(host::problem(
-                    it->script->get_path(),
-                    String(name_of(method)) +
-                        " takes more than one of godot's value types at "
-                        "once, and only one crosses a call"));
                 error->error = GDEXTENSION_CALL_ERROR_INVALID_ARGUMENT;
                 error->argument = (int32_t)i;
                 error->expected = 0;
