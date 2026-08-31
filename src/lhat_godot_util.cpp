@@ -1,5 +1,6 @@
 #include "lhat_godot_util.h"
 
+#include <godot_cpp/core/math_defs.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_int64_array.hpp>
 #include <godot_cpp/variant/string.hpp>
@@ -392,6 +393,30 @@ void whole_of_real_whole(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
+// ---------------------------------------------------------------------------
+// GDScript's PI, TAU, INF and NAN. Written as calls because a host has no way
+// to register a constant -- every lhat_register_* takes a LhatHostFn, and
+// std.math itself carries functions and no constants. A nullary f^ is the
+// nearest thing, and it beats making every writer spell the digits out.
+
+template <double (*Fn)()>
+void util_constant(LhatMachine *machine, void *context,
+                   const LhatValue *arguments, size_t count,
+                   LhatValue *answers, int *answer_count)
+{
+    (void)machine;
+    (void)context;
+    (void)arguments;
+    (void)count;
+    answers[0] = lhat_real(Fn());
+    *answer_count = 1;
+}
+
+double pi_value() { return Math_PI; }
+double tau_value() { return Math_TAU; }
+double inf_value() { return Math_INF; }
+double nan_value() { return Math_NAN; }
+
 }  // namespace
 
 bool register_util(LhatProgram *program, Godot *module)
@@ -426,6 +451,11 @@ bool register_util(LhatProgram *program, Godot *module)
         {"randfn", "f^number^, number^ -> number^;", util_randfn},
         {"rand_from_seed", "f^number^ -> godot.PackedInt64Array;",
          util_rand_from_seed},
+
+        {"PI", "f^ -> number^;", util_constant<pi_value>},
+        {"TAU", "f^ -> number^;", util_constant<tau_value>},
+        {"INF", "f^ -> number^;", util_constant<inf_value>},
+        {"NAN", "f^ -> number^;", util_constant<nan_value>},
 
         {"absf", "f^number^ -> number^;",
          real_of_real<UtilityFunctions::absf>},

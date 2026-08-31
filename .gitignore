@@ -28,6 +28,7 @@ compile_commands.json
 # the demo project once it has opened it.
 demo/bin/
 demo/.godot/
+demo-projects/*/.godot/
 
 # VSCodeCounter
 .VSCodeCounter/

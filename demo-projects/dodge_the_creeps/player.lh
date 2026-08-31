@@ -1,0 +1,91 @@
+# The player, in L^. The GDScript this replaces is player.gd, kept beside it.
+
+module^ dodge.player
+
+import^ godot
+
+@game @export_class
+public^let^ Player = def^{
+	self^{
+		abstract^gdobj : godot.Area2D,
+		@node("AnimatedSprite2D") abstract^sprite : godot.AnimatedSprite2D,
+		@node("CollisionShape2D") abstract^shape : godot.CollisionShape2D,
+		@node("Trail") abstract^trail : godot.GPUParticles2D,
+
+		# How fast the player will move (pixels/sec).
+		@export speed = 400,
+		# Size of the game window. 05 の 8.9 keeps a host value out of a
+		# table, so what a field holds is the box the language hangs under
+		# the type -- get() reads it back out.
+		abstract^screenSize : godot.Vector2.Box^,
+	},
+
+	override^new = f^obj {
+		self^{ gdobj = obj, screenSize = box^godot.vector2(0.0, 0.0) }
+	},
+
+	delegate^self^.gdobj,
+
+	@signal hit = p^self^{},
+
+	_ready = p^self^{
+		self^.screenSize.set(self^.get_viewport_rect().size())
+		self^.hide()
+	},
+
+	_process = p^self^, delta:number^{
+		var^ velocity = godot.vector2(0.0, 0.0)
+		if^ godot.Input.is_action_pressed("move_right", false^) {
+			velocity.x += 1.0
+		}
+		if^ godot.Input.is_action_pressed("move_left", false^) {
+			velocity.x -= 1.0
+		}
+		if^ godot.Input.is_action_pressed("move_down", false^) {
+			velocity.y += 1.0
+		}
+		if^ godot.Input.is_action_pressed("move_up", false^) {
+			velocity.y -= 1.0
+		}
+
+		if^ velocity.length() > 0.0 {
+			velocity := velocity.normalized() * self^.speed
+			self^.sprite.play(self^.sprite.get_animation(), 1.0, false^)
+		else^:
+			self^.sprite.stop()
+		}
+
+		self^.set_position(self^.get_position() + velocity * delta)
+		self^.set_position(self^.get_position().clamp(godot.vector2(0.0, 0.0),
+													 self^.screenSize.get()))
+
+		if^ velocity.x ≠ 0.0 {
+			self^.sprite.set_animation("right")
+			self^.sprite.set_flip_v(false^)
+			self^.trail.set_rotation(0.0)
+			self^.sprite.set_flip_h(velocity.x < 0.0)
+		elseif^ velocity.y ≠ 0.0:
+			self^.sprite.set_animation("up")
+			self^.set_rotation(if^ velocity.y > 0.0: godot.PI() el^: 0.0 ;)
+		}
+	},
+
+	# Called from main through godot.Object.call. What crosses is a Variant,
+	# so a host value is what arrives -- a parameter is a stack place and
+	# 05 の 8.9 allows one there. It is the caller's any^ tail that cannot
+	# carry one, which is why main boxes it on the way out.
+	start = p^self^, pos:godot.Vector2{
+		self^.set_position(pos)
+		self^.set_rotation(0.0)
+		self^.show()
+		self^.shape.set_disabled(false^)
+	},
+
+	_on_body_entered = p^self^, body:godot.Node2D{
+		self^.hide()  # the player disappears after being hit
+		self^.hit()
+		# Must be deferred: a physics property cannot change inside a
+		# physics callback.
+		self^.shape.set_deferred("disabled", true^)
+	},
+}

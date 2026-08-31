@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bggkaprn62fwm"]
 
-[ext_resource type="Script" uid="uid://c4wt6ace7hycd" path="res://main.gd" id="1_0r6n5"]
+[ext_resource type="Script" uid="uid://bht0wa012ehoc" path="res://main.lh" id="1_0r6n5"]
 [ext_resource type="PackedScene" uid="uid://cao351pllxqpa" path="res://mob.tscn" id="2_50pww"]
 [ext_resource type="PackedScene" uid="uid://bwhlkliwp13p4" path="res://player.tscn" id="3_veqnc"]
 [ext_resource type="PackedScene" uid="uid://b0efehuavobda" path="res://hud.tscn" id="4_0qnje"]
@@ -26,6 +26,7 @@ grow_vertical = 2
 color = Color(0.219608, 0.372549, 0.380392, 1)
 
 [node name="Player" parent="." unique_id=927660131 instance=ExtResource("3_veqnc")]
+position = Vector2(238, 241)
 
 [node name="MobTimer" type="Timer" parent="." unique_id=228987391]
 wait_time = 0.5

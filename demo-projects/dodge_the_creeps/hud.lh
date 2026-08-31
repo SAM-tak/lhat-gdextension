@@ -1,0 +1,59 @@
+# The HUD, in L^. The GDScript this replaces is hud.gd, kept beside it.
+#
+# showGameOver is where GDScript writes `await`. In L^ the word is `yield^`
+# (02 の 15.5): a body that writes one answers a coroutine rather than
+# running, and the engine drives it -- what the yield^ hands over is the
+# godot.Signal to wait on, and the resume comes when that signal fires.
+
+module^ dodge.hud
+
+import^ godot
+
+@game @export_class
+public^let^ Hud = def^{
+	self^{
+		abstract^gdobj : godot.CanvasLayer,
+		@node("MessageLabel") abstract^message : godot.Label,
+		@node("MessageTimer") abstract^messageTimer : godot.Timer,
+		@node("ScoreLabel") abstract^score : godot.Label,
+		@node("StartButton") abstract^startButton : godot.Button,
+	},
+
+	override^new = f^obj { self^{ gdobj = obj } },
+
+	delegate^self^.gdobj,
+
+	@signal start_game = p^self^{},
+
+	show_message = p^self^, text:string^{
+		self^.message.set_text(text)
+		self^.message.show()
+		self^.messageTimer.start(-1.0)
+	},
+
+	show_game_over = p^self^{
+		self^.show_message("Game Over")
+		yield^ godot.signal(self^.messageTimer, "timeout")
+
+		self^.message.set_text("Dodge the\nCreeps")
+		self^.message.show()
+
+		let^ wait = self^.get_tree().create_timer(1.0, true^, false^, false^)
+		yield^ godot.signal(wait, "timeout")
+
+		self^.startButton.show()
+	},
+
+	update_score = p^self^, score:number^{
+		self^.score.set_text($"{score}")
+	},
+
+	_on_StartButton_pressed = p^self^{
+		self^.startButton.hide()
+		self^.start_game()
+	},
+
+	_on_MessageTimer_timeout = p^self^{
+		self^.message.hide()
+	},
+}

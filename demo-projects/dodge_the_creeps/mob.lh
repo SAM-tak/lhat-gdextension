@@ -1,0 +1,41 @@
+# The mob, in L^. The GDScript this replaces is mob.gd, kept beside it.
+#
+# `extends RigidBody2D` becomes a field holding the node and delegate^
+# (02 の 14.7改2), which is what shows the class's members -- everything
+# RigidBody2D, PhysicsBody2D, Node and Object declare -- without a
+# forwarding member for any of them.
+
+module^ dodge.mob
+
+import^ godot
+
+@game @export_class
+public^let^ Mob = def^{
+	self^{
+		abstract^gdobj : godot.RigidBody2D,
+		# GDScript writes $AnimatedSprite2D at every use; @node writes the
+		# path and the type once and every use is a field read.
+		@node("AnimatedSprite2D") abstract^sprite : godot.AnimatedSprite2D,
+	},
+
+	override^new = f^obj { self^{ gdobj = obj } },
+
+	delegate^self^.gdobj,
+
+	_ready = p^self^{
+		# get_animation_names answers a PackedStringArray, which is a handle
+		# with size and at -- so pick_random is one line rather than a copy
+		# into an Array first. 02 の 14 writes a sequence from 1, which is
+		# where at() starts.
+		let^ kinds = self^.sprite.get_sprite_frames().get_animation_names()
+		let^ picked = kinds.at(godot.randi_range(1, kinds.size()))
+		self^.sprite.set_animation(picked)
+		# GDScript's bare play() means "the one that is set"; the engine
+		# spells that as the null StringName, which a written "" is not.
+		self^.sprite.play(picked, 1.0, false^)
+	},
+
+	_on_VisibilityNotifier2D_screen_exited = p^self^{
+		self^.queue_free()
+	},
+}

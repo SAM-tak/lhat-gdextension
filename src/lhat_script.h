@@ -21,6 +21,7 @@
 
 #include <godot_cpp/classes/script_extension.hpp>
 #include <godot_cpp/classes/script_language.hpp>  // _get_language answers one
+#include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/templates/hash_set.hpp>
 #include <godot_cpp/templates/local_vector.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
@@ -55,6 +56,13 @@ class LhatScript : public ScriptExtension {
     // only for the host's.
     LhatValue klass = lhat_nil();
     LhatValue instances = lhat_nil();
+    // 02 の 15.5: a body that wrote yield^ answers a coroutine rather than
+    // running, and a suspended one is nobody's until it is resumed -- so it
+    // goes where the collector reaches it, beside the instances and for the
+    // same reason. Emptied with them on a reload: a coroutine of a body the
+    // world no longer holds has nowhere to go back to.
+    LhatValue awaiting = lhat_nil();
+    int64_t next_await = 1;
     // 02 の 18: an annotation is read off the tree, which the program still
     // holds -- so what a field was written with is asked for by name, and
     // these two are what names it.
@@ -94,6 +102,15 @@ class LhatScript : public ScriptExtension {
     // the prototype and so no default, which is what the inspector's revert
     // arrow should mean for it.
     Dictionary defaults;
+
+    // 02 の 14.16: the type each field was written with, as the checker
+    // settled it. 18.3's reading of the tree is four coarse kinds, which
+    // cannot tell a godot.PackedScene from a godot.Vector2 -- and a field
+    // holding nil^ has no value to ask either. This is the third way, and
+    // the only one that answers before anything has been put in the field.
+    // Read once with the defaults; the descriptors belong to the unit's
+    // compiled body, which let_go drops at the same time.
+    HashMap<String, const LhatRuntimeType *> declared;
 
     // 02 の 18: what @rpc says, as the engine wants it -- a Dictionary of
     // member name to the configuration for that member. Read once when the
@@ -233,6 +250,8 @@ public:
     // What a fresh instance's fields hold, by name. Empty where one could
     // not be made.
     const Dictionary &lhat_defaults() const { return defaults; }
+    // The type a field was written with, NULL where it was not read.
+    const LhatRuntimeType *lhat_declared_type(const String &field) const;
     // 02 の 18: what @icon named on the worn binding, or empty. Read by the
     // language's _get_global_class_name, which is what the editor asks
     // before it has loaded anything.
@@ -251,7 +270,14 @@ private:
 
 public:
     void drop_instance(int64_t id);
+
+    // 15.5 with 05 の 8.6: a suspended body, kept reachable until whatever
+    // it is waiting for comes round. False out of memory.
+    bool park_coroutine(LhatValue coroutine, int64_t *id);
+    LhatValue parked_coroutine(int64_t id) const;
+    void drop_coroutine(int64_t id);
     void read_defaults();
+    void read_declared();
 
 public:
     // 03 の 1.1 over the graph: the text is checked with the units it

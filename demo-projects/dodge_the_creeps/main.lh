@@ -1,0 +1,87 @@
+# The game, in L^. The GDScript this replaces is main.gd, kept beside it.
+
+module^ dodge.main
+
+import^ godot
+
+@game @export_class
+public^let^Main = def^{
+	self^{
+		abstract^gdobj : godot.Node,
+		@node("Player") abstract^player : godot.Area2D,
+		@node("HUD") abstract^hud : godot.CanvasLayer,
+		@node("MobTimer") abstract^mobTimer : godot.Timer,
+		@node("ScoreTimer") abstract^scoreTimer : godot.Timer,
+		@node("StartTimer") abstract^startTimer : godot.Timer,
+		@node("StartPosition") abstract^startPosition : godot.Marker2D,
+		@node("MobPath/MobSpawnLocation") abstract^spawn : godot.PathFollow2D,
+		@node("Music") abstract^music : godot.AudioStreamPlayer,
+		@node("DeathSound") abstract^deathSound : godot.AudioStreamPlayer,
+
+		# Named as the scene file names it, so main.tscn's `mob_scene =`
+		# line goes on meaning this field.
+		@export mob_scene : godot.PackedScene|nil^ = nil^,
+		score = 0,
+	},
+
+	override^new = f^obj { self^{ gdobj = obj } },
+
+	delegate^self^.gdobj,
+
+	game_over = p^self^{
+		self^.scoreTimer.stop()
+		self^.mobTimer.stop()
+		self^.hud.call("show_game_over")
+		self^.music.stop()
+		self^.deathSound.play(0.0)
+	},
+
+	new_game = p^self^{
+		# call_group takes a variadic tail, which has no ptrcall and so no
+		# road through the generated table -- godot.Object.call is the way
+		# to one of those.
+		self^.get_tree().call("call_group", "mobs", "queue_free")
+		self^.score := 0
+		# 05 の 8.9 keeps a host value off the heap, so it cannot ride in the
+		# any^ tail of a variadic call -- the box its own type provides can.
+		self^.player.call("start", box^self^.startPosition.get_position())
+		self^.startTimer.start(-1.0)
+		self^.hud.call("update_score", self^.score)
+		self^.hud.call("show_message", "Get Ready")
+		self^.music.play(0.0)
+	},
+
+	_on_MobTimer_timeout = p^self^{
+		let^scene = self^.mob_scene
+		if^scene fits^nil^{ return^ }
+
+		# A new instance of the Mob scene.
+		let^mob = scene.instantiate(0)
+		if^!(mob fits^godot.RigidBody2D) { return^}
+
+		# A random location on the Path2D, and the mob put there.
+		self^.spawn.set_progress_ratio(godot.randf())
+		mob.set_position(self^.spawn.get_position())
+
+		# Perpendicular to the path's direction, with some randomness.
+		var^direction = self^.spawn.get_rotation() + godot.PI() / 2.0
+		direction += godot.randf_range(-godot.PI() / 4.0, godot.PI() / 4.0)
+		mob.set_rotation(direction)
+
+		# The velocity that carries it across the screen.
+		let^velocity = godot.vector2(godot.randf_range(150.0, 250.0), 0.0)
+		mob.set_linear_velocity(velocity.rotated(direction))
+
+		self^.add_child(mob, false^, 0)
+	},
+
+	_on_ScoreTimer_timeout = p^self^{
+		self^.score += 1
+		self^.hud.call("update_score", self^.score)
+	},
+
+	_on_StartTimer_timeout = p^self^{
+		self^.mobTimer.start(-1.0)
+		self^.scoreTimer.start(-1.0)
+	},
+}

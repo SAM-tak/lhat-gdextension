@@ -637,6 +637,26 @@ void joined(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
+// f^self^, T, T -> T. The only three-value shape among these, and clamp is
+// the only member that wants it.
+template <typename T, T (*Get)(const T &, const T &, const T &)>
+void held_between(LhatMachine *machine, void *context,
+                  const LhatValue *arguments, size_t count,
+                  LhatValue *answers, int *answer_count)
+{
+    const Godot *module = module_of(context);
+    T held;
+    T low;
+    T high;
+    if (count < 3 || !taken(arguments[0], module, &held) ||
+        !taken(arguments[1], module, &low) ||
+        !taken(arguments[2], module, &high)) {
+        return;
+    }
+    answers[0] = answer(machine, module, Get(held, low, high));
+    *answer_count = 1;
+}
+
 // f^self^, U -> U
 template <typename T, typename U, U (*Get)(const T &, const U &)>
 void applied(LhatMachine *machine, void *context,
@@ -669,6 +689,24 @@ template <typename T> double v_distance(const T &a, const T &b)
 template <typename T> T v_lerp(const T &a, const T &b, double w)
 {
     return a.lerp(b, (real_t)w);
+}
+
+// Every vector -- real and integer alike -- carries these.
+template <typename T> T v_abs(const T &v) { return v.abs(); }
+template <typename T> T v_sign(const T &v) { return v.sign(); }
+template <typename T> T v_min(const T &a, const T &b) { return a.min(b); }
+template <typename T> T v_max(const T &a, const T &b) { return a.max(b); }
+template <typename T> T v_snapped(const T &v, const T &by)
+{
+    return v.snapped(by);
+}
+template <typename T> T v_clamp(const T &v, const T &low, const T &high)
+{
+    return v.clamp(low, high);
+}
+template <typename T> double v_distance_squared(const T &a, const T &b)
+{
+    return (double)a.distance_squared_to(b);
 }
 
 double v2_angle(const Vector2 &v) { return v.angle(); }
@@ -989,6 +1027,16 @@ bool join_same(LhatProgram *program, Godot *module, const char *name)
                   joined<T, Get>, module);
 }
 
+template <typename T, T (*Get)(const T &, const T &, const T &)>
+bool clasp(LhatProgram *program, Godot *module, const char *name)
+{
+    String path = String("godot.") + Named<T>::spelling();
+    return member(program, Named<T>::spelling(), name,
+                  kept(module, String("f^self^, ") + path + ", " + path +
+                                   " -> " + path + ";"),
+                  held_between<T, Get>, module);
+}
+
 template <typename T, typename U, U (*Get)(const T &, const U &)>
 bool apply(LhatProgram *program, Godot *module, const char *name)
 {
@@ -1005,7 +1053,16 @@ template <typename T>
 bool measured_vector(LhatProgram *program, Godot *module)
 {
     return measure<T, v_length<T>>(program, module, "length") &&
-           measure<T, v_length_squared<T>>(program, module, "lengthSquared");
+           measure<T, v_length_squared<T>>(program, module, "lengthSquared") &&
+           measure_same<T, v_distance<T>>(program, module, "distanceTo") &&
+           measure_same<T, v_distance_squared<T>>(program, module,
+                                                  "distanceSquaredTo") &&
+           part<T, T, v_abs<T>>(program, module, "abs") &&
+           part<T, T, v_sign<T>>(program, module, "sign") &&
+           join_same<T, v_min<T>>(program, module, "min") &&
+           join_same<T, v_max<T>>(program, module, "max") &&
+           join_same<T, v_snapped<T>>(program, module, "snapped") &&
+           clasp<T, v_clamp<T>>(program, module, "clamp");
 }
 
 // And what only a real one does: there is no unit vector among the integers,
@@ -1016,7 +1073,6 @@ bool real_vector(LhatProgram *program, Godot *module)
     return measured_vector<T>(program, module) &&
            part<T, T, v_normalized<T>>(program, module, "normalized") &&
            measure_same<T, v_dot<T>>(program, module, "dot") &&
-           measure_same<T, v_distance<T>>(program, module, "distanceTo") &&
            blend<T, v_lerp<T>>(program, module, "lerp");
 }
 

@@ -791,6 +791,12 @@ const Godot *register_godot(LhatProgram *program)
         {"icon", LHAT_ANNOTATION_PUBLIC | LHAT_ANNOTATION_FILEUNIQUE,
          "p^ string^;", nullptr, "export_class"},
         {"export", LHAT_ANNOTATION_FIELD, nullptr, nullptr, nullptr},
+        // GDScript's `@onready var x: Label = $X`, which is the shape a
+        // script reaching its own children takes: the path is written once,
+        // beside the type, and every use is a field read. Filled at
+        // NOTIFICATION_READY for the reason @onready exists -- a node that
+        // is not in the tree yet answers get_node with nothing.
+        {"node", LHAT_ANNOTATION_FIELD, "p^ string^;", nullptr, nullptr},
         {"export_range", LHAT_ANNOTATION_FIELD, "p^ number^, number^, ...;",
          nullptr, nullptr},
         // An enum wants at least one name; a file filter is optional and

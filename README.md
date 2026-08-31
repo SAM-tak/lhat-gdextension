@@ -601,6 +601,44 @@ for^ p in^ points {
 **写し取らない。** 千要素の配列を読むのは呼び出し千回であって、千要素の表を
 作ることではない。`get()` / `set()` / `call()` はそのまま運ぶ。
 
+### シグナルを待つのは `yield^`
+
+GDScript が `await` と書くところは、L^ では 02 の 15.5 の `yield^` である。
+`yield^` を書いた本体は**呼んでも走らずコルーチンを答える**ので、それを進める
+者が要る。進めるのはエンジンで、`yield^` が手渡すのは待ちたい
+`godot.Signal`、返ってくるのはその発火である。
+
+```lhat
+show_game_over = p^self^{
+    self^.show_message("Game Over")
+    yield^ godot.signal(self^.messageTimer, "timeout")
+
+    self^.message.set_text("Dodge the\nCreeps")
+    let^ wait = self^.get_tree().create_timer(1.0, true^, false^, false^)
+    yield^ godot.signal(wait, "timeout")
+
+    self^.startButton.show()
+},
+```
+
+- **入口は1つ。** virtual（`_ready`/`_process`）もシグナルの受け手も
+  `Object.call` も同じ経路を通るので、どこから呼ばれても待てる
+- **費用は呼び出しごとに型判定1回。** `yield^` を書いていない `p^` は今までどおり
+  直接走る。`_process` に負担は乗らない
+- **中断する本体は必ず `p^`。** `f^` は yield できない（検査が拒む）ので、
+  中断するメンバは返り値を持たない。GDScript も `await` する関数を `await`
+  しない呼び出し元には値を返さないので、位置は同じ
+- **一度きりの接続。** `CONNECT_ONE_SHOT` で繋ぐので、タイマーを待った本体が
+  以降の刻みで目を覚ますことはない。同じノードの2つの本体が同じシグナルを
+  待つこともできる
+- **`godot.Signal` 以外を `yield^` すると誤りになる**——何を待てばよいか言って
+  いないので、黙って止まるより言う
+
+```text
+res://hud.lh: a yield^ the engine is driving has to hand over a
+              godot.Signal to wait on; this one handed over a int
+```
+
 ### 外で編集したものは読み直される
 
 `.lh` を Godot の外（VSCode など）で書き換えても、エディタは気づいて読み直す。
@@ -694,6 +732,46 @@ public^let^ Spinner = Godot.Sprite2D..def^{
   | `@export_enum("赤", "緑")` | 選択肢。1つ以上 |
   | `@export_file("*.png")` | ファイル選択。絞りは0個以上 |
   | `@export_multiline` | 複数行の入力欄 |
+
+  **欄の種類は書かれた型から決まる。** `number^`/`string^`/`bool^` はそのまま、
+  `godot.PackedScene` のようなクラスはリソース選択、`godot.Node2D` のような
+  ノードはノード選択、`godot.Vector2.Box^` はベクタの入力欄になる。
+  18.3 が木から読める型は4種だけなので、これは 14.16 の型記述子
+  （`lhat_unit_export_type`）を読んで決めている——値が `nil^` の欄にも
+  正しい種類が出るのはそのためである。
+
+  ```lhat
+  self^{
+      @export mobScene : godot.PackedScene|nil^ = nil^,   # リソース選択
+      @export abstract^spot : godot.Vector2.Box^,          # ベクタの入力欄
+  }
+  ```
+
+  05 の 8.9 は値型をテーブルに置かせないので、`godot.Vector2` を**持つ**欄は
+  箱（`T.Box^`）である。インスペクタから見れば中身の Vector2 であり、
+  `.tscn` にもそう入る。
+
+- **`@node("パス")`** — GDScript の `@onready var x: Label = $X` にあたる。
+  パスと型を宣言に1度書き、使うときは `self^.x` と読むだけになる。
+  埋まるのは**そのインスタンスの本体が何か走る直前**で、`_ready` はもちろん
+  `_enter_tree` からも見える（`@onready` より早い）。ノードがまだツリーに
+  入っていなければ何も入らず、次の呼び出しで試し直す。
+
+  ```lhat
+  self^{
+      abstract^gdobj : godot.CanvasLayer,
+      @node("MessageLabel") abstract^message : godot.Label,
+      @node("MessageTimer") abstract^timer : godot.Timer,
+  }
+  ```
+
+  **宣言した型は約束として検査される。** そこに居るのが別のクラスなら、
+  欄は `nil^` のままで理由が出る:
+
+  ```text
+  res://hud.lh: @node("MessageLabel") on wrong wants a Button,
+                and what is there is a Label
+  ```
 
 - **`@signal`** — メンバをシグナルの宣言にする。**メンバの引数欄がそのまま
   シグナルの引数欄**で、13.4 が `self^` を外すので呼び手が書く欄と一致する。
@@ -987,6 +1065,35 @@ godot --headless --path godot\demo
 メインシーンしか無い**ため。`EditorScript` は「ファイル > 実行」専用で
 エディタ内でしか生成できず、`--script` は `MainLoop`/`SceneTree` しか
 受け取らない。単一継承なので1つのクラスが両方になることはできない。
+
+### `demo-projects/dodge_the_creeps`
+
+Godot 公式の2Dチュートリアルのデモ（[godot-demo-projects][gdp] の
+`2d/dodge_the_creeps`）を、**`.gd` 4本すべて L^ に置き換えた**もの。GDScript は
+1行も残っていない。`.tscn` は `script` の行以外そのままで、`[connection]` の
+宛先メソッド名も動かしていない——エンジンから見れば名前で届くものは同じである。
+
+[gdp]: https://github.com/godotengine/godot-demo-projects
+
+```console
+godot --path demo-projects/dodge_the_creeps
+```
+
+移植で要ったものは、ここまでに書いた `yield^`・`@node`・`@export` の型が
+そのまま全部で、GDScript にあって L^ に無いものは残らなかった。対応は:
+
+| GDScript | L^ |
+| --- | --- |
+| `extends X` | `abstract^gdobj : godot.X` と `delegate^self^.gdobj` |
+| `$Foo` | `@node("Foo") abstract^foo : godot.T` を書いて `self^.foo` |
+| `text = "x"` | `set_text("x")`（クラスのメソッドはエンジン綴り） |
+| `signal hit` / `hit.emit()` | `@signal hit = p^self^{}` / `self^.hit()` |
+| `await sig` | `yield^ sig` |
+| `str(n)` | `$"{n}"` |
+| `x += 1` | 同じ（値型のフィールドでも通る） |
+
+デフォルト引数は省略できないので（13.4）、`instantiate()` は `instantiate(0)`、
+`is_action_pressed("x")` は `is_action_pressed("x", false^)` と書く。
 
 ## godot-cpp
 

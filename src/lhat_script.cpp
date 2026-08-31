@@ -306,7 +306,9 @@ void LhatScript::let_go()
 {
     klass = lhat_nil();
     instances = lhat_nil();
+    awaiting = lhat_nil();
     unit = nullptr;
+    declared.clear();
     klass_name = String();
     unwearable = String();
     runnable = false;
@@ -649,10 +651,14 @@ Error LhatScript::reload_now(bool keep_state)
     CharString under = get_path().utf8();
     if (!lhat_machine_make_table(machine, &instances) ||
         !lhat_machine_register(machine, "godot.script", "instances",
-                               under.get_data(), instances)) {
+                               under.get_data(), instances) ||
+        !lhat_machine_make_table(machine, &awaiting) ||
+        !lhat_machine_register(machine, "godot.script", "awaiting",
+                               under.get_data(), awaiting)) {
         UtilityFunctions::push_error(
             host::problem(get_path(), "out of memory"));
         instances = lhat_nil();
+        awaiting = lhat_nil();
         return OK;
     }
 
@@ -662,6 +668,7 @@ Error LhatScript::reload_now(bool keep_state)
     fill_signals();
     fill_rpc();
     read_defaults();
+    read_declared();
     warn_about_signals();
     // The editor is showing a list built from the text before this one.
     lhat_refresh_placeholders(this);
@@ -736,6 +743,47 @@ void LhatScript::read_base_class()
 // value. What a fresh one holds is read straight off it, with nothing made
 // and nothing run. A field new fills (14.15) has no key there and so no
 // default, which is exactly what the editor should say about it.
+const LhatRuntimeType *LhatScript::lhat_declared_type(
+    const String &field) const
+{
+    const LhatRuntimeType *const *found = declared.getptr(field);
+    return found != nullptr ? *found : nullptr;
+}
+
+// 05 の 4.5 with 14.16: the class is always published (@export_class writes
+// public^), so what the checker settled for it is askable by name -- and it
+// comes back walkable, which is the only way to tell a godot.PackedScene
+// from a godot.Vector2. 18.3's reading of the tree is four coarse kinds, and
+// a field holding nil^ has no value to ask either.
+//
+// A definition's descriptor is a structure whose `instance` is the self^
+// section. delegate^ (14.7改2) puts the delegated class's members in there
+// beside the fields, so most of what is in it is a signature -- the fields
+// are what is left.
+void LhatScript::read_declared()
+{
+    declared.clear();
+    if (unit == nullptr || klass_name.is_empty()) {
+        return;
+    }
+    CharString named = klass_name.utf8();
+    const LhatRuntimeType *said = lhat_unit_export_type(unit, named.get_data());
+    if (said == nullptr || said->instance == nullptr) {
+        return;
+    }
+    const LhatRuntimeType *fields = said->instance;
+    for (size_t i = 0; i < fields->member_count; i++) {
+        const LhatRuntimeTypeMember &member = fields->members[i];
+        if (member.name == nullptr || member.type == nullptr ||
+            member.type->kind == LHAT_TYPE_RT_SUBROUTINE) {
+            continue;
+        }
+        declared.insert(
+            String::utf8(member.name->text, (int)member.name->length),
+            member.type);
+    }
+}
+
 void LhatScript::read_defaults()
 {
     LhatMachine *machine = lhat_machine();
@@ -839,6 +887,44 @@ bool LhatScript::make_instance(Object *owner, LhatValue *out, int64_t *id)
     *out = made.value;
     *id = next_id++;
     return true;
+}
+
+bool LhatScript::park_coroutine(LhatValue coroutine, int64_t *id)
+{
+    LhatMachine *machine = lhat_machine();
+    if (machine == nullptr || !lhat_is_object_kind(awaiting, LHAT_OBJECT_TABLE)) {
+        return false;
+    }
+    LhatTable *table = (LhatTable *)lhat_as_object(awaiting);
+    bool refused = false;
+    if (!lhat_machine_table_set(machine, table, lhat_integer(next_await),
+                                coroutine, &refused) ||
+        refused) {
+        return false;
+    }
+    *id = next_await++;
+    return true;
+}
+
+LhatValue LhatScript::parked_coroutine(int64_t id) const
+{
+    if (!lhat_is_object_kind(awaiting, LHAT_OBJECT_TABLE)) {
+        return lhat_nil();
+    }
+    return lhat_table_get((const LhatTable *)lhat_as_object(awaiting),
+                          lhat_integer(id));
+}
+
+void LhatScript::drop_coroutine(int64_t id)
+{
+    LhatMachine *machine = lhat_machine();
+    if (machine == nullptr || !lhat_is_object_kind(awaiting, LHAT_OBJECT_TABLE)) {
+        return;
+    }
+    LhatTable *table = (LhatTable *)lhat_as_object(awaiting);
+    bool refused = false;
+    lhat_machine_table_set(machine, table, lhat_integer(id), lhat_nil(),
+                           &refused);
 }
 
 void LhatScript::drop_instance(int64_t id)
