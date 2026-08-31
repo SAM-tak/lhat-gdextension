@@ -1,8 +1,8 @@
 # The mob, in L^. The GDScript this replaces was Mob.gd.
 
-module^ squash.mob
+module^squash.mob
 
-import^ godot
+import^godot
 
 @game @export_class
 public^let^Mob = def^{
@@ -31,7 +31,7 @@ public^let^Mob = def^{
 	# the caller boxes each Vector3 (05 の 8.9) and what arrives here is the
 	# value, which a parameter is allowed to be.
 	initialize = p^self^, startPosition:godot.Vector3,
-	                     playerPosition:godot.Vector3{
+	                     playerPosition:godot.Vector3 {
 		# The player's height is ignored, so that the mob's orientation is
 		# not shifted if the mob spawns while the player is jumping.
 		let^up = godot.vector3(0.0, 1.0, 0.0)

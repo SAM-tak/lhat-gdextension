@@ -1,8 +1,8 @@
 # The game, in L^. The GDScript this replaces was Main.gd.
 
-module^ squash.main
+module^squash.main
 
-import^ godot
+import^godot
 
 @game @export_class
 public^let^Main = def^{
@@ -49,7 +49,7 @@ public^let^Main = def^{
 		self^.retry.hide()
 	},
 
-	_unhandled_input = p^self^, event:godot.InputEvent{
+	_unhandled_input = p^self^, event:godot.InputEvent {
 		if^event.is_action_pressed("ui_accept", false^, false^)
 		   and^ self^.retry.is_visible() {
 			self^.get_tree().reload_current_scene()

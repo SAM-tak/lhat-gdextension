@@ -1,8 +1,8 @@
 # The player, in L^. The GDScript this replaces was Player.gd.
 
-module^ squash.player
+module^squash.player
 
-import^ godot
+import^godot
 
 @game @export_class
 public^let^Player = def^{
@@ -97,7 +97,7 @@ public^let^Player = def^{
 		self^.queue_free()
 	},
 
-	_on_MobDetector_body_entered = p^self^, body:godot.Node3D{
+	_on_MobDetector_body_entered = p^self^, body:godot.Node3D {
 		self^.die()
 	},
 }
