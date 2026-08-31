@@ -1,8 +1,8 @@
 # The game, in L^. The GDScript this replaces is main.gd, kept beside it.
 
-module^ dodge.main
+module^dodge.main
 
-import^ godot
+import^godot
 
 @game @export_class
 public^let^Main = def^{

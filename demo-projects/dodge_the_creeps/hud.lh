@@ -5,9 +5,9 @@
 # running, and the engine drives it -- what the yield^ hands over is the
 # godot.Signal to wait on, and the resume comes when that signal fires.
 
-module^ dodge.hud
+module^dodge.hud
 
-import^ godot
+import^godot
 
 @game @export_class
 public^let^ Hud = def^{
@@ -33,13 +33,13 @@ public^let^ Hud = def^{
 
 	show_game_over = p^self^{
 		self^.show_message("Game Over")
-		yield^ godot.signal(self^.messageTimer, "timeout")
+		yield^godot.signal(self^.messageTimer, "timeout")
 
 		self^.message.set_text("Dodge the\nCreeps")
 		self^.message.show()
 
-		let^ wait = self^.get_tree().create_timer(1.0, true^, false^, false^)
-		yield^ godot.signal(wait, "timeout")
+		let^wait = self^.get_tree().create_timer(1.0, true^, false^, false^)
+		yield^godot.signal(wait, "timeout")
 
 		self^.startButton.show()
 	},
