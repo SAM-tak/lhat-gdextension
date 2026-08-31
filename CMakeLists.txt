@@ -70,6 +70,11 @@ if(LHAT_ALL_RUNTIMES)
     return()
 endif()
 
+# Which runtime this library is for. Settled first: the core's debugger
+# below and godot-cpp further down both read it.
+set(GODOTCPP_TARGET "template_debug" CACHE STRING
+    "Which runtime this is for: editor, template_debug or template_release.")
+
 # コアは兄弟に在るものをそのまま使う。godot-cpp に対して取っているのと同じ
 # 立場で、取得は存在させる手段でしかない（../godot も ../lua-5.5.1 も同じ並び）。
 set(LHAT_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../lhat"
@@ -86,6 +91,19 @@ set(LHAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(LHAT_BUILD_CLI OFF CACHE BOOL "" FORCE)
 set(LHAT_BUILD_LSP OFF CACHE BOOL "" FORCE)
 set(LHAT_BUILD_STDLIB OFF CACHE BOOL "" FORCE)
+
+# 09 章's debugger rides in the editor and in a debug export, where the
+# engine's own debugger does -- and stays out of a shipping game the way
+# DEBUG_ENABLED does. The core compiles the whole of it away
+# (LHAT_WITH_DEBUGGER 0 keeps the fault readers: a fault report is not a
+# debugger), and lhat_debugger.cpp folds to stubs on the same macro, which
+# version.h carries out through lhat.h.
+if(GODOTCPP_TARGET STREQUAL "template_release")
+    set(LHAT_WITH_DEBUGGER OFF CACHE BOOL "" FORCE)
+    set(LHAT_BUILD_DAP OFF CACHE BOOL "" FORCE)
+else()
+    set(LHAT_WITH_DEBUGGER ON CACHE BOOL "" FORCE)
+endif()
 add_subdirectory("${LHAT_CORE_DIR}" lhat-core)
 
 set(LHAT_GODOT_CPP_DIR
@@ -130,8 +148,6 @@ endif()
 # godot-cpp. As with the checkout, building it is only ever how the export
 # comes to exist -- a godot-cpp that changed underneath is rebuilt by
 # removing its tree.
-set(GODOTCPP_TARGET "template_debug" CACHE STRING
-    "Which runtime this is for: editor, template_debug or template_release.")
 set(LHAT_GODOT_CPP_BUILD_DIR
     "${CMAKE_SOURCE_DIR}/build/godot-cpp-${GODOTCPP_TARGET}"
     CACHE PATH "Where godot-cpp for this runtime is built, once.")

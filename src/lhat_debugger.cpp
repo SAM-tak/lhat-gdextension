@@ -1,5 +1,13 @@
 #include "lhat_debugger.h"
 
+// The whole of this file is 09 章's debugger, and a shipping build has none
+// (CMakeLists.txt sets LHAT_WITH_DEBUGGER=OFF for template_release; the core
+// compiles its side away on the same macro). What stays everywhere is the
+// fault path: frame_count and frame_at read host::last_fault_frames, which
+// run_problem records with the readers 09 章 keeps -- a fault report is not
+// a debugger.
+#if LHAT_WITH_DEBUGGER
+
 #include <godot_cpp/classes/engine_debugger.hpp>
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
@@ -272,3 +280,64 @@ Dictionary frame_locals(int32_t level)
 
 }  // namespace host
 }  // namespace godot
+
+#else  // !LHAT_WITH_DEBUGGER
+
+namespace godot {
+namespace host {
+
+void watch(LhatMachine *machine, ScriptLanguage *language)
+{
+    (void)machine;
+    (void)language;
+}
+
+bool stopped()
+{
+    return false;
+}
+
+int32_t frame_count()
+{
+    return (int32_t)last_fault_frames().size();
+}
+
+bool frame_at(int32_t level, FaultFrame *out)
+{
+    const Vector<FaultFrame> &frames = last_fault_frames();
+    if (level < 0 || level >= frames.size()) {
+        return false;
+    }
+    *out = frames[level];
+    return true;
+}
+
+Dictionary frame_locals(int32_t level)
+{
+    (void)level;
+    return Dictionary();
+}
+
+void *frame_instance(int32_t level)
+{
+    (void)level;
+    return nullptr;
+}
+
+Dictionary frame_members(int32_t level)
+{
+    (void)level;
+    return Dictionary();
+}
+
+String frame_evaluate(int32_t level, const String &text)
+{
+    (void)level;
+    (void)text;
+    return String("(no debugger in this build)");
+}
+
+}  // namespace host
+}  // namespace godot
+
+#endif  // LHAT_WITH_DEBUGGER
