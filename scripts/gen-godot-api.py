@@ -126,14 +126,13 @@ def enum_owner(key, classes, wanted, singletons):
     owner, name = key.split(".", 1)
     if owner in singletons:
         return "godot." + owner, None, name, "godot.%s.%s" % (owner, name)
-    if owner in wanted:
+    if owner in wanted or owner in HOSTVALUE:
+        # 8.9's value types hold one exactly as 8.8's do -- what a signature
+        # names is godot.Vector3.Axis either way.
         return "godot", owner, name, "godot.%s.%s" % (owner, name)
-    if owner in HOSTVALUE or owner == "Variant":
-        # A value type (8.9) holds one as far as registration goes, but a
-        # signature naming godot.Vector3.Axis does not resolve -- and a
-        # Variant is no type here at all, since what one is in L^ is any^.
-        # Both join the module's own instead, named for where they came
-        # from: godot.Vector3Axis, godot.VariantType.
+    if owner == "Variant":
+        # 8.9 registers no godot.Variant: what a Variant is in L^ is any^.
+        # So its enums join the module's own, named for where they came from.
         return "godot", None, owner + name, "godot." + owner + name
     return None
 
