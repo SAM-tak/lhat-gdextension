@@ -15,6 +15,7 @@
 #include "lhat_godot_containers.h"
 #include "lhat_godot_util.h"
 #include "lhat_godot_handles.h"
+#include "lhat_godot_enums.h"
 #include "lhat_godot_packed.h"
 #include "lhat_godot_values.h"
 #include "lhat_variant.h"
@@ -436,6 +437,21 @@ bool laid_out(const BoundMethod *method, const LhatValue *arguments,
                 held[i].boolean = lhat_as_bool(given) ? 1 : 0;
                 slots[i] = &held[i].boolean;
                 break;
+            case LHAT_GD_ENUM: {
+                // 19.2: the member is the value a program passes about, and
+                // `value` is what the declaration gave it -- which is the
+                // number the engine declared the parameter with.
+                const LhatEnumerator *member =
+                    lhat_is_object_kind(given, LHAT_OBJECT_ENUMERATOR)
+                        ? (const LhatEnumerator *)lhat_as_object(given)
+                        : nullptr;
+                held[i].integer =
+                    member != nullptr && lhat_is_integer(member->value)
+                        ? lhat_as_integer(member->value)
+                        : 0;
+                slots[i] = &held[i].integer;
+                break;
+            }
             case LHAT_GD_INT:
                 // 14.8's one number^ arrives either way round, and which
                 // width the engine wanted is what the kind remembers.
@@ -526,6 +542,16 @@ LhatValue answered(LhatMachine *machine, const BoundMethod *method,
             internal::gdextension_interface_object_method_bind_ptrcall(
                 bind, owner, slots, &back);
             return lhat_integer(back);
+        }
+        case LHAT_GD_ENUM: {
+            // 19.2: an enumerator is a singleton, so what comes back is the
+            // one the machine built rather than one made here. A number the
+            // enum does not name answers nil^ -- which the engine does where
+            // it packs flags into an enum-typed answer.
+            int64_t back = 0;
+            internal::gdextension_interface_object_method_bind_ptrcall(
+                bind, owner, slots, &back);
+            return enum_member(method->answer_enum, back);
         }
         case LHAT_GD_FLOAT: {
             double back = 0;
@@ -871,6 +897,13 @@ const Godot *register_godot(LhatProgram *program)
     // 05 の 8.7: the engine's global functions, which have no receiver and
     // so become functions of this module rather than members of a type.
     if (!register_util(program, module)) {
+        return nullptr;
+    }
+
+    // 05 の 8.7改2: the engine's enums as 02 の 19 章's own, each under the
+    // type or the module that holds it -- after the classes and the value
+    // types, since those are what an enum hangs under.
+    if (!register_enums(program, module)) {
         return nullptr;
     }
 

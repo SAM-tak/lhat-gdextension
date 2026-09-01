@@ -14,6 +14,7 @@
 #include <godot_cpp/core/memory.hpp>
 
 #include "lhat.h"
+#include "lhat_godot_enums.h"
 #include "lhat_godot_module.h"
 #include "lhat_debugger.h"
 #include "lhat_host.h"
@@ -209,6 +210,10 @@ LhatProgram *LhatLanguage::world_program()
     // 05 の 8.7: what was registered reaches the machine here, which is what
     // makes the names bound above answer something.
     lhat_program_install(program, machine);
+    // 05 の 8.7改2: install is what builds the enums, and an answer of one
+    // has to be handed the very member the machine made (19.2's singleton).
+    // So they are read back here, once, while the machine is new.
+    host::find_enum_members(machine);
     // 09 の 2.2: and the hook goes on where a debugger is attached, which is
     // what lets a breakpoint stop this machine (lhat_debugger.h).
     host::watch(machine, this);

@@ -127,6 +127,11 @@ enum {
     // that type crosses as LHAT_GD_OBJECT, since PtrToArg<Ref<T>>::convert
     // reads a bare pointer and takes a count of its own.
     LHAT_GD_REFCOUNTED,
+    // 05 の 8.7改2: one of the engine's enums, declared as 02 の 19 章's own.
+    // An argument arrives as the enumerator and crosses as its number; an
+    // answer is a number the row's `answer_enum` turns back into the member,
+    // since an enumerator is a singleton and only the machine has one.
+    LHAT_GD_ENUM,
     // The two that carry a Variant::Type in the low bits: one says which
     // value type's bytes these are (8.9), the other which handle it is
     // (a Callable, a Signal, one of the ten packed arrays).
@@ -176,6 +181,36 @@ struct BoundMethod {
     // The singleton this is called against, found once at registration.
     // NULL for everything else, which takes its receiver from the call.
     GodotObject *owner;
+    // 8.7改2: which enum an LHAT_GD_ENUM answer is a member of. NULL for
+    // every other answer, which is most of them.
+    const struct BoundEnum *answer_enum;
+};
+
+// 05 の 8.7改2: one of the engine's enums, as 02 の 19 章 declares one.
+// `type` is the registered type it hangs under (godot.Node's own Mode) and
+// NULL for one of the module's own -- a singleton's are the module's, since
+// 8.7 makes a singleton a module rather than a type.
+struct BoundEnum {
+    const char *module;
+    const char *type;
+    const char *name;
+    const char *const *members;
+    const int64_t *values;
+    size_t count;
+    // Filled once the program is on a machine: the members by their number,
+    // which is what an answer has to look one up by. A HashMap the
+    // registration owns; the values are rooted in L^.modules.
+    void *by_value;
+};
+
+// 8.7改2: a bitfield's names. Flags are put together with '+', which 19 章's
+// members cannot be, so these stay numbers under the same reach the enum
+// would have had.
+struct BoundConstant {
+    const char *module;
+    const char *type;
+    const char *name;
+    int64_t value;
 };
 
 // What every entry of that table is registered with: reads `context` as the

@@ -106,12 +106,129 @@ def array_named(element):
     return "ArrayOf" + element[0].upper() + element[1:]
 
 
+# 05 の 8.7改2: what select_enums worked out, by the spelling a signature
+# uses -- "Node.ProcessMode", or "Error" for one of the module's own. Read by
+# kind_of, which has no room for another argument and is called from three
+# places. Empty until select_enums has run, which main does first.
+ENUMS = {}
+
+
+def enum_owner(key, classes, wanted, singletons):
+    """(module, type, name, spelt) for one enum, or None where nothing holds it.
+
+    02 の 19 章 has no nesting, so what carries an enum here is 8.8's
+    namespace: a registered type lends its own, and a singleton -- which is
+    a module rather than a type (8.7) -- lends the module's. Both come out
+    spelt the same way, which is what a reader coming from GDScript expects.
+    """
+    if "." not in key:
+        return "godot", None, key, "godot." + key     # the module's own
+    owner, name = key.split(".", 1)
+    if owner in singletons:
+        return "godot." + owner, None, name, "godot.%s.%s" % (owner, name)
+    if owner in wanted:
+        return "godot", owner, name, "godot.%s.%s" % (owner, name)
+    if owner in HOSTVALUE or owner == "Variant":
+        # A value type (8.9) holds one as far as registration goes, but a
+        # signature naming godot.Vector3.Axis does not resolve -- and a
+        # Variant is no type here at all, since what one is in L^ is any^.
+        # Both join the module's own instead, named for where they came
+        # from: godot.Vector3Axis, godot.VariantType.
+        return "godot", None, owner + name, "godot." + owner + name
+    return None
+
+
+def enum_spelt(key):
+    """What a signature writes for this enum, or None where it was skipped."""
+    row = ENUMS.get(key)
+    return row["spelt"] if row else None
+
+
+def select_enums(api, classes, wanted, singletons):
+    """The enums to register, by key, and the bitfields to register as
+    constants.
+
+    Skipped: what nothing in the whole engine API names (a constant the C++
+    keeps for itself, which no script can be handed or hand over), and what
+    no registered type or module can hold.
+    """
+    named = set()
+    def note(spelling):
+        for prefix in ("enum::", "bitfield::"):
+            if spelling.startswith(prefix):
+                named.add(spelling[len(prefix):])
+                return
+    for c in api["classes"] + api.get("builtin_classes", []):
+        for method in c.get("methods", []):
+            for a in method.get("arguments", []):
+                note(a["type"])
+            note(method.get("return_value", {}).get("type", "")
+                 or method.get("return_type", ""))
+        for described in c.get("properties", []):
+            note(described.get("type", ""))
+        for signal in c.get("signals", []):
+            for a in signal.get("arguments", []):
+                note(a["type"])
+
+    enums, constants = {}, []
+    def take(owner, declared, api_type):
+        key = ("%s.%s" % (owner, declared["name"])) if owner else declared["name"]
+        # A bitfield is kept whether or not a signature names it. Godot
+        # declares most flag parameters as a plain int -- Node.duplicate's
+        # among them -- so "named by the API" says nothing about whether a
+        # writer needs the names, and there are only a few dozen of them.
+        if key not in named and not declared.get("is_bitfield"):
+            return  # nothing in the API names it
+        held = enum_owner(key, classes, wanted, singletons)
+        if held is None:
+            return  # no type and no module to hold it
+        module, under, name, spelt = held
+        editor = api_type != "core"
+        members = [(v["name"], v["value"]) for v in declared["values"]]
+        if declared.get("is_bitfield"):
+            # Flags are made by putting them together, and 19 章's members
+            # are singletons with no '+'. So these stay numbers, named where
+            # the enum would have been.
+            for member, value in members:
+                constants.append({"module": module, "type": under,
+                                  "name": member, "value": value,
+                                  "editor": editor})
+            return
+        enums[key] = {"key": key, "module": module, "type": under,
+                      "name": name, "spelt": spelt,
+                      "members": members, "editor": editor}
+
+    for declared in api.get("global_enums", []):
+        take(None, declared, "core")
+    for c in api["classes"]:
+        for declared in c.get("enums", []):
+            take(c["name"], declared, c.get("api_type", "core"))
+    # 05 の 8.9's value types declare a few of their own (Vector3.Axis), and
+    # they are registered types like any other, so they can hold one. Their
+    # *constants* are values rather than numbers (Vector3.UP), which
+    # lhat_register_const_integer has no room for -- godot.vector3 is how one
+    # of those is written.
+    for c in api.get("builtin_classes", []):
+        for declared in c.get("enums", []):
+            take(c["name"], declared, "core")
+    return enums, constants
+
+
 def kind_of(spelling, classes, wanted):
     """(kind expression, L^ type) for one engine type, or None when unbound."""
     # 02 の 14.8: one number^ over integers and reals, so an int, a float and
     # every enum are one type to a script. Which the engine wanted is still
     # carried, since ptrcall is handed a different width for each.
-    if spelling.startswith("enum::") or spelling.startswith("bitfield::"):
+    # 8.7改2: an enum the host declared is a type of its own, so a signature
+    # names it and the checker holds a caller to it. A bitfield is a set of
+    # flags put together with '+', which 19 章's members cannot do, so those
+    # stay 14.8's one number^.
+    if spelling.startswith("enum::"):
+        spelt = enum_spelt(spelling[len("enum::"):])
+        if spelt is not None:
+            return "LHAT_GD_ENUM", spelt
+        return "LHAT_GD_INT", "number^"
+    if spelling.startswith("bitfield::"):
         return "LHAT_GD_INT", "number^"
     if spelling == "int":
         return "LHAT_GD_INT", "number^"
@@ -352,8 +469,21 @@ def gather(api, classes, wanted, singletons=()):
                 bare = spelling.replace("typedarray::", "")
                 if bare in classes and classes[bare]["api_type"] != "core":
                     editor = True
+                if spelling.startswith("enum::"):
+                    held = ENUMS.get(spelling[len("enum::"):])
+                    if held is not None and held["editor"]:
+                        editor = True
+            # 8.7改2: an enum answer is a member of the enum, and which
+            # member is a lookup by the number the engine hands back -- so
+            # the row carries the enum the lookup is in.
+            answer_enum = None
+            if answered and answered.startswith("enum::"):
+                held = ENUMS.get(answered[len("enum::"):])
+                if held is not None:
+                    answer_enum = held["key"]
             rows.append({
                 "editor": editor,
+                "answer_enum": answer_enum,
                 "name": method["name"],
                 "signature": signature,
                 "class": name,
@@ -380,7 +510,7 @@ def split_signature(signature, room=68):
     return lines
 
 
-def write(api, classes, wanted, rows, arrays, left_out):
+def write(api, classes, wanted, rows, arrays, left_out, enums, constants):
     # The same argument shape recurs -- every setter of a float, every getter
     # of nothing -- so one array is written per distinct shape and shared.
     shapes = {}
@@ -415,10 +545,72 @@ def write(api, classes, wanted, rows, arrays, left_out):
     say("#include <godot_cpp/variant/string_name.hpp>")
     say("")
     say('#include "lhat_godot_containers.h"')
+    say('#include "lhat_godot_enums.h"')
     say('#include "lhat_godot_module.h"')
     say("")
     say("namespace godot {")
     say("namespace host {")
+    say("")
+    # Where each enum sits in its table, so a row can name one by address.
+    enum_at = {}
+    for label, editor in (("enums", False), ("editor_enums", True)):
+        at = 0
+        for key, row in enums.items():
+            if row["editor"] == editor:
+                enum_at[key] = at
+                at += 1
+
+    # 05 の 8.7改2: the engine's enums as 19 章's own. The members and their
+    # numbers are written out as two runs so that one registration hands over
+    # both; a name is the engine's own spelling, which is what a reader
+    # coming from GDScript already knows.
+    for label, editor in (("enums", False), ("editor_enums", True)):
+        held = [e for e in enums.values() if e["editor"] == editor]
+        for row in held:
+            flat = "%s_%s" % (label, row["key"].replace(".", "_"))
+            say("const char *const %s_names[] = {" % flat)
+            for name, _ in row["members"]:
+                say('    "%s",' % name)
+            say("};")
+            say("const int64_t %s_values[] = {" % flat)
+            for _, value in row["members"]:
+                say("    %s," % value)
+            say("};")
+        say("")
+        say("BoundEnum %s[] = {" % label)
+        for row in held:
+            flat = "%s_%s" % (label, row["key"].replace(".", "_"))
+            say('    {"%s", %s, "%s",'
+                % (row["module"],
+                   ('"%s"' % row["type"]) if row["type"] else "nullptr",
+                   row["name"]))
+            say("     %s_names, %s_values, %d, nullptr},"
+                % (flat, flat, len(row["members"])))
+        say("};")
+        say("")
+
+    # 8.7改2 again: a bitfield is a set of flags rather than a choice, so its
+    # names are constants of the same reach and the signatures stay number^.
+    for label, editor in (("constants", False), ("editor_constants", True)):
+        say("BoundConstant %s[] = {" % label)
+        for row in constants:
+            if row["editor"] != editor:
+                continue
+            say('    {"%s", %s, "%s", %s},'
+                % (row["module"],
+                   ('"%s"' % row["type"]) if row["type"] else "nullptr",
+                   row["name"], row["value"]))
+        say("};")
+        say("")
+
+    say("const size_t enum_count = sizeof(enums) / sizeof(enums[0]);")
+    say("const size_t editor_enum_count =")
+    say("    sizeof(editor_enums) / sizeof(editor_enums[0]);")
+    say("const size_t constant_count =")
+    say("    sizeof(constants) / sizeof(constants[0]);")
+    say("const size_t editor_constant_count =")
+    say("    sizeof(editor_constants) / sizeof(editor_constants[0]);")
+    say("")
     say("namespace {")
     say("")
     for shape, label in shapes.items():
@@ -476,12 +668,19 @@ def write(api, classes, wanted, rows, arrays, left_out):
                 % (row["class"],
                    ('"%s"' % row["module"]) if row["module"] else "nullptr",
                    row["hash"]))
-            tail = "%s, %d, %d, %s, nullptr, nullptr, nullptr}," % (
-                row["answer"], len(row["kinds"]), row["boxed"], shape)
+            # The last three are filled at registration (the module, the
+            # bind, a singleton's receiver); the fourth is the enum an
+            # answer is a member of, which only an enum-answering row has.
+            held = ("&%s[%d]" % (("editor_enums" if row["editor"] else "enums"),
+                                 enum_at[row["answer_enum"]])
+                    if row["answer_enum"] else "nullptr")
+            tail = "%s, %d, %d, %s, nullptr, nullptr, nullptr, %s}," % (
+                row["answer"], len(row["kinds"]), row["boxed"], shape, held)
             if len(tail) + 5 > 79:
                 say("     %s," % row["answer"])
-                say("     %d, %d, %s, nullptr, nullptr, nullptr},"
+                say("     %d, %d, %s, nullptr, nullptr, nullptr,"
                     % (len(row["kinds"]), row["boxed"], shape))
+                say("     %s}," % held)
             else:
                 say("     %s" % tail)
         say("};")
@@ -804,8 +1003,13 @@ def main():
         api = json.load(source)
     classes = {c["name"]: c for c in api["classes"]}
     wanted, singletons, dropped = selected(classes, api)
+    # 8.7改2 before everything: kind_of reads ENUMS to know whether a
+    # signature may name an enum, and gather calls kind_of.
+    enums, constants = select_enums(api, classes, wanted, singletons)
+    ENUMS.clear()
+    ENUMS.update(enums)
     rows, arrays, left_out = gather(api, classes, wanted, singletons)
-    write(api, classes, wanted, rows, arrays, left_out)
+    write(api, classes, wanted, rows, arrays, left_out, enums, constants)
     write_docs(api, classes, wanted, singletons, rows, dropped)
 
 

@@ -56,7 +56,8 @@ public^let^Main = def^{
 		if^scene fits^nil^{ return^ }
 
 		# A new instance of the Mob scene.
-		let^mob = scene.instantiate(0)
+		let^mob = scene.instantiate(
+			godot.PackedScene.GenEditState.GEN_EDIT_STATE_DISABLED)
 		if^!(mob fits^godot.RigidBody2D) { return^}
 
 		# A random location on the Path2D, and the mob put there.
@@ -72,7 +73,8 @@ public^let^Main = def^{
 		let^velocity = godot.vector2(godot.randf_range(150.0, 250.0), 0.0)
 		mob.set_linear_velocity(velocity.rotated(direction))
 
-		self^.add_child(mob, false^, 0)
+		self^.add_child(mob, false^,
+		                godot.Node.InternalMode.INTERNAL_MODE_DISABLED)
 	},
 
 	_on_ScoreTimer_timeout = p^self^{

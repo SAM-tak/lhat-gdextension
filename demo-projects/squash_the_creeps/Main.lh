@@ -28,21 +28,23 @@ public^let^Main = def^{
 		if^godot.RenderingServer.get_current_rendering_method() = "gl_compatibility" {
 			# PCF13 shadow filtering, which reads better than the medium
 			# setting's PCF5.
-			# TODO: RenderingServer.SHADOW_QUALITY_SOFT_HIGH is 4.
-			godot.RenderingServer.directional_soft_shadow_filter_set_quality(4)
+			godot.RenderingServer.directional_soft_shadow_filter_set_quality(
+				godot.RenderingServer.ShadowQuality.SHADOW_QUALITY_SOFT_HIGH)
 
 			# The light's energy is darkened to make up for sRGB blending,
 			# without touching how the sky is drawn.
-			# TODO: the engine's enums have no spelling in L^ yet, so these
-			# stand in for DirectionalLight3D.SKY_MODE_SKY_ONLY (2) and
-			# SKY_MODE_LIGHT_ONLY (1), Light3D.PARAM_ENERGY (0), and the
-			# duplicate flags Node.duplicate defaults to (15).
-			self^.light.set_sky_mode(2)
+			# Node.duplicate takes its flags as a plain int, so the 15 is
+			# the engine's own default written out (signals, groups,
+			# scripts, instantiation).
+			self^.light.set_sky_mode(
+				godot.DirectionalLight3D.SkyMode.SKY_MODE_SKY_ONLY)
 			let^made = self^.light.duplicate(15)
 			if^made fits^godot.DirectionalLight3D {
-				made.set_param(0, 0.35)
-				made.set_sky_mode(1)
-				self^.add_child(made, false^, 0)
+				made.set_param(godot.Light3D.Param.PARAM_ENERGY, 0.35)
+				made.set_sky_mode(
+					godot.DirectionalLight3D.SkyMode.SKY_MODE_LIGHT_ONLY)
+				self^.add_child(made, false^,
+					godot.Node.InternalMode.INTERNAL_MODE_DISABLED)
 			}
 		}
 
@@ -59,7 +61,7 @@ public^let^Main = def^{
 	_on_mob_timer_timeout = p^self^{
 		let^scene = self^.mob_scene
 		if^scene fits^nil^ { return^}
-		let^mob = scene.instantiate(0)
+		let^mob = scene.instantiate(godot.PackedScene.GenEditState.GEN_EDIT_STATE_DISABLED)
 		if^!(mob fits^godot.Node) { return^}
 
 		# A random spot on the SpawnPath.
@@ -71,7 +73,8 @@ public^let^Main = def^{
 		mob.call("initialize", box^self^.spawn.get_position(),
 		                      box^self^.player.get_position())
 
-		self^.add_child(mob, false^, 0)
+		self^.add_child(mob, false^,
+		                godot.Node.InternalMode.INTERNAL_MODE_DISABLED)
 
 		# The mob is wired to the score label, which counts the squashing.
 		godot.signal(mob, "squashed").connect(
