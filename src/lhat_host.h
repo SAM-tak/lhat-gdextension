@@ -9,6 +9,7 @@
 #define LHAT_GODOT_HOST_H
 
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/templates/vector.hpp>
@@ -17,6 +18,13 @@
 #include <godot_cpp/variant/typed_array.hpp>
 
 #include "lhat.h"
+
+// 05 の 10.8: whether the front end is compiled in comes out of lhat.h, and
+// this side folds its readers of text on it -- to nothing, silently, if the
+// name ever went missing. Hence the check.
+#ifndef LHAT_WITH_FRONTEND
+#error "lhat.h does not say whether the front end is compiled in"
+#endif
 
 namespace godot {
 namespace host {
@@ -54,11 +62,30 @@ struct Units {
 // a require^ resolves in 5.1's flat space.
 String unit_path(const Units &units, const String &path);
 
+// Without the front end (10.8) `hold` holds nothing: no text is read, and
+// the loader answers with the compiled unit in the .pck alone.
 Units units_for(const String &path);
 void hold(Units *units, const String &path, const String &text);
 
+// 05 の 10.7: where an export in Compiled mode puts the signature table
+// (lhat_export.cpp), and where a library without the front end reads it
+// from before it registers anything.
+constexpr const char *SIGNATURES_PATH = "res://.lhat.sig";
+
+// What goes into the .pck for a unit (05 の 10 章) and for the table: the
+// core's bytes under a zstd wrapper of this side's own, since the .pck
+// compresses nothing -- the way GDScript's compressed tokens do it. `packed`
+// wraps; `unpacked` takes the wrapper off what was read, and answers what it
+// was given when it was not wrapped, so text and plain bytes pass as they
+// are. The core sees its own magic first either way. Empty, and said under
+// `where`, when a wrapper's payload would not unpack.
+PackedByteArray packed(const PackedByteArray &raw);
+PackedByteArray unpacked(const PackedByteArray &stored, const String &where);
+
 // A program reading through `units`, with 8.2's initial names bound. NULL
-// when there was no memory. `units` has to outlive it.
+// when there was no memory -- or, without the front end, when the signature
+// table was not there to read; said where it happened. `units` has to
+// outlive it.
 LhatProgram *program_for(Units *units);
 
 // What every stage of every unit in the graph reported, one line each.

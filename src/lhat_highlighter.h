@@ -24,6 +24,7 @@
 #include <godot_cpp/variant/dictionary.hpp>
 
 #include "lhat/semantic.h"
+#include "lhat_export.h"
 
 #include <godot_cpp/variant/packed_int64_array.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
@@ -126,6 +127,9 @@ class LhatEditorPlugin : public EditorPlugin {
     GDCLASS(LhatEditorPlugin, EditorPlugin)
 
     Ref<LhatHighlighter> highlighter;
+    // 05 の 10 章: what an export does with .lh files (lhat_export.h). Put on
+    // the editor here for the same reason the highlighter is.
+    Ref<LhatExportPlugin> exporter;
 
 protected:
     static void _bind_methods();

@@ -12,6 +12,8 @@
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/godot.hpp>
 
+#include "lhat.h"
+#include "lhat_export.h"
 #include "lhat_highlighter.h"
 #include "lhat_language.h"
 #include "lhat_resource_format.h"
@@ -44,12 +46,18 @@ void lhat_initialise_module(ModuleInitializationLevel level)
     // The level is also reached where there is no editor at all: a game
     // started from the command line passes through it. Nothing here asks for
     // one, so nothing has to guard against that.
+    //
+    // 05 の 10.8: none of it is built into a VM-only library (CMakeLists.txt),
+    // which no editor loads.
+#if LHAT_WITH_FRONTEND
     if (level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
         GDREGISTER_CLASS(LhatHighlighter);
+        GDREGISTER_CLASS(LhatExportPlugin);
         GDREGISTER_CLASS(LhatEditorPlugin);
         EditorPlugins::add_by_type<LhatEditorPlugin>();
         return;
     }
+#endif
     if (level != MODULE_INITIALIZATION_LEVEL_SCENE) {
         return;
     }
@@ -74,12 +82,14 @@ void lhat_initialise_module(ModuleInitializationLevel level)
 
 void lhat_uninitialise_module(ModuleInitializationLevel level)
 {
+#if LHAT_WITH_FRONTEND
     if (level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
         // The plugin took the highlighter out of the script editor when it
         // left the tree; what is left is the class registration.
         EditorPlugins::remove_by_type<LhatEditorPlugin>();
         return;
     }
+#endif
     if (level != MODULE_INITIALIZATION_LEVEL_SCENE) {
         return;
     }

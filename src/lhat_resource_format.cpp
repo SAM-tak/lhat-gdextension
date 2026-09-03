@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
+#include "lhat.h"
 #include "lhat_script.h"
 
 namespace godot {
@@ -77,7 +78,13 @@ Variant LhatScriptLoader::_load(const String &path, const String &original_path,
         script.instantiate();
         script->set_path(path);
     }
+    // 05 の 10.8: a library without the front end holds no text. What it
+    // reads is the compiled unit in the .pck, through the loader
+    // (lhat_host.cpp) and under this same path -- so nothing is read here,
+    // and the reload below finds it there.
+#if LHAT_WITH_FRONTEND
     script->set_source_code(FileAccess::get_file_as_string(path));
+#endif
     // Checking here is what makes the editor's error list right the moment a
     // file is opened, rather than on the first edit.
     script->reload(false);

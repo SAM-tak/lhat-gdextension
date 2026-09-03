@@ -637,6 +637,9 @@ void LhatEditorPlugin::_enter_tree()
                              Callable(this, "asked_for_receiver"));
     }
 
+    exporter.instantiate();
+    add_export_plugin(exporter);
+
     ScriptEditor *scripts = editor != nullptr ? editor->get_script_editor()
                                               : nullptr;
     if (scripts == nullptr) {
@@ -658,6 +661,11 @@ void LhatEditorPlugin::_exit_tree()
                                   Callable(this, "asked_for_receiver"))) {
         editor_node->disconnect("script_add_function_request",
                                 Callable(this, "asked_for_receiver"));
+    }
+
+    if (exporter.is_valid()) {
+        remove_export_plugin(exporter);
+        exporter.unref();
     }
 
     if (highlighter.is_null()) {

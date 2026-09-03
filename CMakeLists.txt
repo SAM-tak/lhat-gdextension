@@ -24,17 +24,17 @@ project(lhat_gdextension C CXX)
 # its own, and a preset, being one configure, cannot span them.
 #
 # This option makes the tree a driver instead: it holds nothing of its own and
-# configures and builds the three under build/<target>-<level>, which are the
+# configures and builds the five under build/<target>-<level>, which are the
 # very trees the per-runtime presets use, so nothing is built twice. `level`
 # is the optimisation, named as the presets name it.
 #
 #     cmake --preset release && cmake --build --preset release
 #
-# builds the three optimised libraries into demo/bin. Whatever was set here
+# builds the five optimised libraries into demo/bin. Whatever was set here
 # for the core and godot-cpp is handed down; what was not is left to each
 # tree's own default, which is the same one.
 option(LHAT_ALL_RUNTIMES
-    "Build editor, template_debug and template_release together" OFF)
+    "Build editor, template_debug and template_release together, and the two templates VM-only as well" OFF)
 if(LHAT_ALL_RUNTIMES)
     include(ExternalProject)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -50,7 +50,16 @@ if(LHAT_ALL_RUNTIMES)
             list(APPEND forwarded "-D${name}=${${name}}")
         endif()
     endforeach()
-    foreach(target editor template_debug template_release)
+    foreach(target editor template_debug template_release
+                   template_debug-vmonly template_release-vmonly)
+        # A -vmonly tree is the same Godot target on the core without its
+        # front end (LHAT_VM_ONLY below).
+        string(REGEX REPLACE "-vmonly$" "" godot_target "${target}")
+        if(target MATCHES "-vmonly$")
+            set(vm_only ON)
+        else()
+            set(vm_only OFF)
+        endif()
         ExternalProject_Add(${target}
             SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
             BINARY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/${target}-${level}"
@@ -58,7 +67,8 @@ if(LHAT_ALL_RUNTIMES)
                 -G "${CMAKE_GENERATOR}"
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-                -DGODOTCPP_TARGET=${target}
+                -DGODOTCPP_TARGET=${godot_target}
+                -DLHAT_VM_ONLY=${vm_only}
                 -DLHAT_ALL_RUNTIMES=OFF
                 ${forwarded}
             # The sub-build is incremental on its own; this only says to ask
@@ -74,6 +84,15 @@ endif()
 # below and godot-cpp further down both read it.
 set(GODOTCPP_TARGET "template_debug" CACHE STRING
     "Which runtime this is for: editor, template_debug or template_release.")
+
+# 05 の 10.8: a template library may stand on the core without its front end
+# -- no lexer, parser, checker or compiler -- and then reads only compiled
+# units, with the signature table an export in Compiled mode writes beside
+# them (lhat_export.cpp). The editor reads text, so it cannot be one.
+option(LHAT_VM_ONLY "Build on the VM-only core: compiled units only" OFF)
+if(LHAT_VM_ONLY AND GODOTCPP_TARGET STREQUAL "editor")
+    message(FATAL_ERROR "the editor reads text: LHAT_VM_ONLY needs a template target")
+endif()
 
 # コアは兄弟に在るものをそのまま使う。godot-cpp に対して取っているのと同じ
 # 立場で、取得は存在させる手段でしかない（../godot も ../lua-5.5.1 も同じ並び）。
@@ -103,6 +122,14 @@ if(GODOTCPP_TARGET STREQUAL "template_release")
     set(LHAT_BUILD_DAP OFF CACHE BOOL "" FORCE)
 else()
     set(LHAT_WITH_DEBUGGER ON CACHE BOOL "" FORCE)
+endif()
+# The front end goes with LHAT_VM_ONLY. The core folds every reader of text
+# to a refusal on the same macro, which version.h carries out through lhat.h
+# as LHAT_WITH_FRONTEND -- what this side reads to leave text alone too.
+if(LHAT_VM_ONLY)
+    set(LHAT_WITH_FRONTEND OFF CACHE BOOL "" FORCE)
+else()
+    set(LHAT_WITH_FRONTEND ON CACHE BOOL "" FORCE)
 endif()
 add_subdirectory("${LHAT_CORE_DIR}" lhat-core)
 
@@ -219,8 +246,6 @@ add_library(lhat_gdextension SHARED
     src/lhat_script.cpp
     src/lhat_instance.cpp
     src/lhat_language.cpp
-    src/lhat_highlighter.cpp
-    src/lhat_receiver.cpp
     src/lhat_godot_values.cpp
     src/lhat_godot_handles.cpp
     src/lhat_godot_packed.cpp
@@ -230,6 +255,18 @@ add_library(lhat_gdextension SHARED
     src/lhat_debugger.cpp
     src/lhat_resource_format.cpp
 )
+# The editor's own. The highlighter and the receiver read text through the
+# core's lexer and the export plugin writes units out through its compiler,
+# none of which a VM-only core has (05 の 10.8) -- and no editor loads a
+# VM-only library. The level that registers them is fenced the same way
+# (register_types.cpp).
+if(NOT LHAT_VM_ONLY)
+    target_sources(lhat_gdextension PRIVATE
+        src/lhat_highlighter.cpp
+        src/lhat_receiver.cpp
+        src/lhat_export.cpp
+    )
+endif()
 
 target_link_libraries(lhat_gdextension PRIVATE lhat godot-cpp)
 # Where the generated lhat_icon.h lands.
@@ -248,6 +285,13 @@ endif()
 # the file name, and godot-cpp already assembles that suffix for its own
 # library. Taking it from there is what keeps demo/lhat.gdextension right.
 set(LHAT_GD_SUFFIX "${GODOTCPP_SUFFIX}")  # from godot-cpp-vars.cmake
+# A VM-only library says so between the target and the architecture, so the
+# two libraries for one target stand side by side in demo/bin. The file name
+# is free -- it is the .gdextension row, not the name, that the engine reads.
+if(LHAT_VM_ONLY)
+    string(REPLACE ".${GODOTCPP_TARGET}." ".${GODOTCPP_TARGET}.vmonly."
+           LHAT_GD_SUFFIX "${LHAT_GD_SUFFIX}")
+endif()
 set(LHAT_GD_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/demo/bin")
 
 set_target_properties(lhat_gdextension PROPERTIES

@@ -985,23 +985,33 @@ cmake --preset release      # 初回は godot-cpp を取得する
 cmake --build --preset release
 ```
 
-これで3つとも出る。配るものは3つある。Godot は最適化の有無ではなく**どのランタイムが読むか**で
-呼び分けていて、3つは排他:
+これで5つとも出る。Godot は最適化の有無ではなく**どのランタイムが読むか**で
+呼び分けていて、`editor` / `template_debug` / `template_release` は排他。
+template の2つには、コアの前段（字句・構文・検査・コンパイル）を持たない
+**VM だけ**の版がもう1本ずつある（`LHAT_VM_ONLY`。下の「書き出し」）:
 
 | preset | `GODOTCPP_TARGET` | 読むのは | Unity で言えば |
 |---|---|---|---|
 | `editor` | `editor` | エディタ（と、そこから起動したゲーム） | development |
-| `template_debug` | `template_debug` | debug 書き出しのゲーム | development |
-| `template_release` | `template_release` | release 書き出しのゲーム | shipping |
+| `template_debug` | `template_debug` | debug 書き出し、Text のゲーム | development |
+| `template_debug-vmonly` | `template_debug` | debug 書き出し、Compiled のゲーム | development |
+| `template_release` | `template_release` | release 書き出し、Text のゲーム | shipping |
+| `template_release-vmonly` | `template_release` | release 書き出し、Compiled のゲーム | shipping |
 
-**3つとも最適化あり・デバッグシンボルなし**（`CMAKE_BUILD_TYPE=Release`）。
+`.gdextension` のキーは Godot の feature tag で、`editor` / `template_debug` /
+`template_release` はエンジンが `TOOLS_ENABLED` の有無から答える固定の綴り。
+`GODOTCPP_TARGET` も godot-cpp の3値。自由なのは preset 名と dll のファイル名
+だけなので、同じものに違う名前を付けず、`vmonly` を軸として足している。
+
+**5つとも最適化あり・デバッグシンボルなし**（`CMAKE_BUILD_TYPE=Release`）。
 Godot の `debug` / `release` はランタイムの別であって最適化の別ではなく、
 公式の書き出しテンプレートも両方とも最適化ビルド。
 
-`release` / `debug` / `fastdebug` が最適化の段で、それぞれ3つまとめて作る
+`release` / `debug` / `fastdebug` が最適化の段で、それぞれ5つまとめて作る
 （`CMakeLists.txt` の `LHAT_ALL_RUNTIMES`。プリセットは1 configure なので、
-3 configure を束ねるのはそちらの仕事）。1つだけ欲しければ
-`<target>-<level>`、たとえば `cmake --build --preset template_debug-debug`。
+5 configure を束ねるのはそちらの仕事）。1つだけ欲しければ
+`<target>[-vmonly]-<level>`、たとえば `cmake --build --preset template_debug-debug`
+や `cmake --build --preset template_release-vmonly-release`。
 `debug` と `fastdebug` は拡張そのもののバグを追うためのもので、配らない。
 
 出力は `demo/bin/` に直接落ちる:
@@ -1009,7 +1019,9 @@ Godot の `debug` / `release` はランタイムの別であって最適化の�
 ```text
 liblhat.windows.editor.x86_64.dll
 liblhat.windows.template_debug.x86_64.dll
+liblhat.windows.template_debug.vmonly.x86_64.dll
 liblhat.windows.template_release.x86_64.dll
+liblhat.windows.template_release.vmonly.x86_64.dll
 ```
 
 godot-cpp はランタイムごとに**1回だけ**、`build/godot-cpp-<target>/` に
@@ -1027,6 +1039,43 @@ godot-cpp 側を変えたら `build/godot-cpp-<target>/` を消す。
 `template_release`。キーはタグの連言で、**タグ数の多い行が勝つ**（先勝ちでは
 ない）ので、同数で重なる `debug` を書くとエディタとゲームのどちらが取るかが
 キーの順で決まってしまう。この3つなら排他になる。
+
+template の素の行は VM だけの版を指し、前段入りの版は `lhat_text` を足した
+行（タグが1つ多い）に置いてある。`lhat_text` は Text で書き出したゲームに
+だけ立つ（次の「書き出し」）。
+
+## 書き出し
+
+書き出し preset の Options に **Lhat › Script Export Mode** が出る
+（`export_presets.cfg` では `lhat/script_export_mode`、0 が Text、1 が
+Compiled）。GDScript の「スクリプト」欄と同じ位置づけだが、あちらはエンジン
+組み込みで、こちらは `EditorExportPlugin`（`src/lhat_export.cpp`）が足している。
+
+| | `.pck` の `.lh` | 配られる dll | ゲームが読む dll |
+|---|---|---|---|
+| **Compiled**（既定） | コンパイル済みバイト列 ＋ 署名表 `.lhat.sig`（どちらも zstd） | VM だけの1本 | VM だけ |
+| **Text** | テキストのまま | VM だけ ＋ 前段入り | 前段入り（`lhat_text`） |
+
+Compiled は各 `.lh` を検査・コンパイルして**同じパス**にバイト列で入れる
+（05 の 10 章。`require^` の綴りが変わらないので名前も変えない）。ホストが
+登録した署名の表 `res://.lhat.sig` を一緒に入れ、VM だけの dll は起動時に
+まずそれを読む（10.7。前段が無いと署名文字列を読めないため）。署名表と
+バイト列は同じコアから作った dll でしか読めず、違えば `BAD_BINARY` で止まる
+——エディタの dll と template の dll を別のコアから作らないこと。検査に落ちた
+`.lh` は書き出しログに検査器の行が出て、テキストのまま入る。VM だけの dll は
+それを起動時に `NO_FRONTEND` で拒む。
+
+dll を選ぶのはエンジンで、書き出し時に見る feature は preset のものだけ
+（拡張の `_get_export_features` は書き出したゲームにしか載らない）。だから
+素の行を VM だけに向け、Text のときは拡張が前段入りをもう1本足して
+`lhat_text` で勝たせる。dll が2本入るのは Text だけ。
+
+`.pck` は何も圧縮しないので、GDScript の圧縮トークンと同じくファイルの中で
+掛ける: `PackedByteArray.compress`（zstd）に独自の8バイト（magic ＋ 展開後
+サイズ）を被せて入れ、ローダーが剥がしてからコアに渡す（`src/lhat_host.cpp`
+の `packed` / `unpacked`）。コアは従来どおり自分の magic を先頭に見る。
+dodge_the_creeps で署名表 908KB → 66KB、単位は 3〜4 分の 1。Compiled の `.pck`
+は Text より署名表の分（約 65KB）だけ大きい。
 
 ## 言語サーバーに `godot` を教える
 

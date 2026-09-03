@@ -16,6 +16,10 @@ namespace host {
 
 namespace {
 
+// The wrapper's mark. 0x89 begins no UTF-8 text, as the core's own magic has
+// it; the last byte tells the wrapper from a unit (^) and a table (S).
+const uint8_t PACKED_MAGIC[4] = {0x89, 'L', 'H', 'z'};
+
 char *copy_of(const char *text, size_t size, size_t *length)
 {
     // One past the end, so the text is NUL terminated whatever it holds.
@@ -45,7 +49,7 @@ char *load_unit(void *context, const char *path, size_t *length)
     if (!FileAccess::file_exists(full)) {
         return nullptr;
     }
-    PackedByteArray bytes = FileAccess::get_file_as_bytes(full);
+    PackedByteArray bytes = unpacked(FileAccess::get_file_as_bytes(full), full);
     return copy_of((const char *)bytes.ptr(), (size_t)bytes.size(), length);
 }
 
@@ -98,6 +102,7 @@ Units units_for(const String &path)
 // the language asks the loader for is the stripped path, so that is the key.
 void hold(Units *units, const String &path, const String &text)
 {
+#if LHAT_WITH_FRONTEND
     String named = path;
     for (const char *scheme : {"res://", "user://"}) {
         if (named.begins_with(scheme)) {
@@ -106,6 +111,51 @@ void hold(Units *units, const String &path, const String &text)
         }
     }
     units->held[named] = text.utf8();
+#else
+    // 05 の 10.8: nothing here reads text, so nothing stands in for what
+    // the loader reads -- the compiled unit in the .pck. A script's source
+    // is empty in this build, and holding that would hand the program an
+    // empty text under the unit's name.
+    (void)units;
+    (void)path;
+    (void)text;
+#endif
+}
+
+PackedByteArray packed(const PackedByteArray &raw)
+{
+    PackedByteArray body = raw.compress(FileAccess::COMPRESSION_ZSTD);
+    PackedByteArray out;
+    out.resize(8 + body.size());
+    uint8_t *w = out.ptrw();
+    memcpy(w, PACKED_MAGIC, sizeof PACKED_MAGIC);
+    // The raw length, little-endian whatever wrote it: decompress asks for it.
+    uint32_t length = (uint32_t)raw.size();
+    for (int i = 0; i < 4; i++) {
+        w[4 + i] = (uint8_t)(length >> (8 * i));
+    }
+    memcpy(w + 8, body.ptr(), (size_t)body.size());
+    return out;
+}
+
+PackedByteArray unpacked(const PackedByteArray &stored, const String &where)
+{
+    if (stored.size() < 8 ||
+        memcmp(stored.ptr(), PACKED_MAGIC, sizeof PACKED_MAGIC) != 0) {
+        return stored;
+    }
+    uint32_t length = 0;
+    for (int i = 0; i < 4; i++) {
+        length |= (uint32_t)stored[4 + i] << (8 * i);
+    }
+    PackedByteArray raw =
+        stored.slice(8).decompress(length, FileAccess::COMPRESSION_ZSTD);
+    if ((uint32_t)raw.size() != length) {
+        UtilityFunctions::push_error(
+            problem(where, "the compressed bytes did not unpack"));
+        return PackedByteArray();
+    }
+    return raw;
 }
 
 LhatProgram *program_for(Units *units)
@@ -115,6 +165,32 @@ LhatProgram *program_for(Units *units)
     if (program == nullptr) {
         return nullptr;
     }
+#if !LHAT_WITH_FRONTEND
+    // 05 の 10.7: without the front end a signature is not read but looked
+    // up, in the table an export in Compiled mode wrote from these same
+    // registrations (lhat_export.cpp) -- so before the first of them.
+    PackedByteArray table = FileAccess::get_file_as_bytes(SIGNATURES_PATH);
+    if (table.is_empty()) {
+        UtilityFunctions::push_error(problem(
+            SIGNATURES_PATH,
+            "not found: this library reads only compiled units, so export "
+            "with lhat/script_export_mode set to Compiled"));
+        lhat_program_free(program);
+        return nullptr;
+    }
+    table = unpacked(table, SIGNATURES_PATH);
+    if (table.is_empty() ||
+        !lhat_program_read_signatures(program, table.ptr(),
+                                      (size_t)table.size())) {
+        PackedStringArray said;
+        diagnostics_into(program, said);
+        for (int i = 0; i < said.size(); i++) {
+            UtilityFunctions::push_error(said[i]);
+        }
+        lhat_program_free(program);
+        return nullptr;
+    }
+#endif
     if (!lhat_register_global(program, "print", "f^...->nil^;", host_print,
                               nullptr) ||
         !lhat_bind_initial(program, "print", "L^.print") ||

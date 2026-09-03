@@ -31,19 +31,19 @@
 
     {
       "name": "release",
-      "displayName": "all three runtimes, optimised -- what to ship",
+      "displayName": "all five runtimes, optimised -- what to ship",
       "inherits": ["base", "level-release"],
       "cacheVariables": { "LHAT_ALL_RUNTIMES": "ON" }
     },
     {
       "name": "debug",
-      "displayName": "all three runtimes, unoptimised with symbols",
+      "displayName": "all five runtimes, unoptimised with symbols",
       "inherits": ["base", "level-debug"],
       "cacheVariables": { "LHAT_ALL_RUNTIMES": "ON" }
     },
     {
       "name": "fastdebug",
-      "displayName": "all three runtimes, optimised with symbols",
+      "displayName": "all five runtimes, optimised with symbols",
       "inherits": ["base", "level-fastdebug"],
       "cacheVariables": { "LHAT_ALL_RUNTIMES": "ON" }
     },
@@ -66,6 +66,18 @@
       "inherits": "base",
       "cacheVariables": { "GODOTCPP_TARGET": "template_release" }
     },
+    {
+      "name": "target-template_debug-vmonly",
+      "hidden": true,
+      "inherits": "target-template_debug",
+      "cacheVariables": { "LHAT_VM_ONLY": "ON" }
+    },
+    {
+      "name": "target-template_release-vmonly",
+      "hidden": true,
+      "inherits": "target-template_release",
+      "cacheVariables": { "LHAT_VM_ONLY": "ON" }
+    },
 
     { "name": "editor-release", "displayName": "editor, optimised", "inherits": ["target-editor", "level-release"] },
     { "name": "editor-debug", "displayName": "editor, unoptimised with symbols", "inherits": ["target-editor", "level-debug"] },
@@ -75,7 +87,13 @@
     { "name": "template_debug-fastdebug", "displayName": "development, optimised with symbols", "inherits": ["target-template_debug", "level-fastdebug"] },
     { "name": "template_release-release", "displayName": "shipping, optimised", "inherits": ["target-template_release", "level-release"] },
     { "name": "template_release-debug", "displayName": "shipping, unoptimised with symbols", "inherits": ["target-template_release", "level-debug"] },
-    { "name": "template_release-fastdebug", "displayName": "shipping, optimised with symbols", "inherits": ["target-template_release", "level-fastdebug"] }
+    { "name": "template_release-fastdebug", "displayName": "shipping, optimised with symbols", "inherits": ["target-template_release", "level-fastdebug"] },
+    { "name": "template_debug-vmonly-release", "displayName": "development, VM only, optimised", "inherits": ["target-template_debug-vmonly", "level-release"] },
+    { "name": "template_debug-vmonly-debug", "displayName": "development, VM only, unoptimised with symbols", "inherits": ["target-template_debug-vmonly", "level-debug"] },
+    { "name": "template_debug-vmonly-fastdebug", "displayName": "development, VM only, optimised with symbols", "inherits": ["target-template_debug-vmonly", "level-fastdebug"] },
+    { "name": "template_release-vmonly-release", "displayName": "shipping, VM only, optimised", "inherits": ["target-template_release-vmonly", "level-release"] },
+    { "name": "template_release-vmonly-debug", "displayName": "shipping, VM only, unoptimised with symbols", "inherits": ["target-template_release-vmonly", "level-debug"] },
+    { "name": "template_release-vmonly-fastdebug", "displayName": "shipping, VM only, optimised with symbols", "inherits": ["target-template_release-vmonly", "level-fastdebug"] }
   ],
   "buildPresets": [
     { "name": "release", "configurePreset": "release" },
@@ -90,6 +108,12 @@
     { "name": "template_debug-fastdebug", "configurePreset": "template_debug-fastdebug" },
     { "name": "template_release-release", "configurePreset": "template_release-release" },
     { "name": "template_release-debug", "configurePreset": "template_release-debug" },
-    { "name": "template_release-fastdebug", "configurePreset": "template_release-fastdebug" }
+    { "name": "template_release-fastdebug", "configurePreset": "template_release-fastdebug" },
+    { "name": "template_debug-vmonly-release", "configurePreset": "template_debug-vmonly-release" },
+    { "name": "template_debug-vmonly-debug", "configurePreset": "template_debug-vmonly-debug" },
+    { "name": "template_debug-vmonly-fastdebug", "configurePreset": "template_debug-vmonly-fastdebug" },
+    { "name": "template_release-vmonly-release", "configurePreset": "template_release-vmonly-release" },
+    { "name": "template_release-vmonly-debug", "configurePreset": "template_release-vmonly-debug" },
+    { "name": "template_release-vmonly-fastdebug", "configurePreset": "template_release-vmonly-fastdebug" }
   ]
 }

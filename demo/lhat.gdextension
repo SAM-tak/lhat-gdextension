@@ -11,23 +11,42 @@ compatibility_minimum = "4.5"
 ; three disjoint. Writing `debug` here instead would match the editor as well
 ; as a debug export, with the same tag count, and which one won would be the
 ; order of the keys.
+;
+; The plain template rows name the VM-only libraries (LHAT_VM_ONLY): an
+; export carries compiled units unless lhat/script_export_mode says Text, and
+; then the L^ export plugin ships the library with the front end as well and
+; raises `lhat_text` on the game, so the row with that tag -- one more than
+; the plain row -- wins (src/lhat_export.cpp). The editor reads text and has
+; no VM-only row; a game run from the editor is the editor.
 [libraries]
 
 windows.editor.x86_64 = "res://bin/liblhat.windows.editor.x86_64.dll"
-windows.template_debug.x86_64 = "res://bin/liblhat.windows.template_debug.x86_64.dll"
-windows.template_release.x86_64 = "res://bin/liblhat.windows.template_release.x86_64.dll"
+windows.template_debug.x86_64 = "res://bin/liblhat.windows.template_debug.vmonly.x86_64.dll"
+windows.template_release.x86_64 = "res://bin/liblhat.windows.template_release.vmonly.x86_64.dll"
+windows.template_debug.lhat_text.x86_64 = "res://bin/liblhat.windows.template_debug.x86_64.dll"
+windows.template_release.lhat_text.x86_64 = "res://bin/liblhat.windows.template_release.x86_64.dll"
 windows.editor.arm64 = "res://bin/liblhat.windows.editor.arm64.dll"
-windows.template_debug.arm64 = "res://bin/liblhat.windows.template_debug.arm64.dll"
-windows.template_release.arm64 = "res://bin/liblhat.windows.template_release.arm64.dll"
+windows.template_debug.arm64 = "res://bin/liblhat.windows.template_debug.vmonly.arm64.dll"
+windows.template_release.arm64 = "res://bin/liblhat.windows.template_release.vmonly.arm64.dll"
+windows.template_debug.lhat_text.arm64 = "res://bin/liblhat.windows.template_debug.arm64.dll"
+windows.template_release.lhat_text.arm64 = "res://bin/liblhat.windows.template_release.arm64.dll"
 linux.editor.x86_64 = "res://bin/liblhat.linux.editor.x86_64.so"
-linux.template_debug.x86_64 = "res://bin/liblhat.linux.template_debug.x86_64.so"
-linux.template_release.x86_64 = "res://bin/liblhat.linux.template_release.x86_64.so"
+linux.template_debug.x86_64 = "res://bin/liblhat.linux.template_debug.vmonly.x86_64.so"
+linux.template_release.x86_64 = "res://bin/liblhat.linux.template_release.vmonly.x86_64.so"
+linux.template_debug.lhat_text.x86_64 = "res://bin/liblhat.linux.template_debug.x86_64.so"
+linux.template_release.lhat_text.x86_64 = "res://bin/liblhat.linux.template_release.x86_64.so"
 linux.editor.arm64 = "res://bin/liblhat.linux.editor.arm64.so"
-linux.template_debug.arm64 = "res://bin/liblhat.linux.template_debug.arm64.so"
-linux.template_release.arm64 = "res://bin/liblhat.linux.template_release.arm64.so"
+linux.template_debug.arm64 = "res://bin/liblhat.linux.template_debug.vmonly.arm64.so"
+linux.template_release.arm64 = "res://bin/liblhat.linux.template_release.vmonly.arm64.so"
+linux.template_debug.lhat_text.arm64 = "res://bin/liblhat.linux.template_debug.arm64.so"
+linux.template_release.lhat_text.arm64 = "res://bin/liblhat.linux.template_release.arm64.so"
 macos.editor.x86_64 = "res://bin/liblhat.macos.editor.x86_64.dylib"
-macos.template_debug.x86_64 = "res://bin/liblhat.macos.template_debug.x86_64.dylib"
-macos.template_release.x86_64 = "res://bin/liblhat.macos.template_release.x86_64.dylib"
+macos.template_debug.x86_64 = "res://bin/liblhat.macos.template_debug.vmonly.x86_64.dylib"
+macos.template_release.x86_64 = "res://bin/liblhat.macos.template_release.vmonly.x86_64.dylib"
+macos.template_debug.lhat_text.x86_64 = "res://bin/liblhat.macos.template_debug.x86_64.dylib"
+macos.template_release.lhat_text.x86_64 = "res://bin/liblhat.macos.template_release.x86_64.dylib"
 macos.editor.arm64 = "res://bin/liblhat.macos.editor.arm64.dylib"
-macos.template_debug.arm64 = "res://bin/liblhat.macos.template_debug.arm64.dylib"
-macos.template_release.arm64 = "res://bin/liblhat.macos.template_release.arm64.dylib"
+macos.template_debug.arm64 = "res://bin/liblhat.macos.template_debug.vmonly.arm64.dylib"
+macos.template_release.arm64 = "res://bin/liblhat.macos.template_release.vmonly.arm64.dylib"
+macos.template_debug.lhat_text.arm64 = "res://bin/liblhat.macos.template_debug.arm64.dylib"
+macos.template_release.lhat_text.arm64 = "res://bin/liblhat.macos.template_release.arm64.dylib"
