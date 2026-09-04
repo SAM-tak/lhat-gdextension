@@ -50,6 +50,21 @@ Object *resolve(const Handle *handle)
     return UtilityFunctions::instance_from_id((int64_t)handle->id);
 }
 
+// 05 の 8.12: what an object is remembered under in the machine's weak cache.
+// The instance id rather than the address, because the key is only ever
+// compared and the engine never gives one id out twice -- an address it
+// gives out again as soon as the object is freed, and the entry left under
+// it would answer for whatever was built there next.
+//
+// A pointer is what the cache takes, so the id is carried as one. That
+// narrows on a 32-bit build, where two ids may land on one key; a get checks
+// the wrapper it found before believing it, which is what makes the
+// narrowing a miss rather than a wrong answer.
+const void *remembered_as(uint64_t id)
+{
+    return (const void *)(uintptr_t)id;
+}
+
 // The engine's object and nothing else, which is all a ptrcall is handed.
 //
 // resolve above goes the way godot-cpp goes: a utility function, and then
@@ -303,7 +318,6 @@ void godot_dispose(LhatMachine *machine, void *context,
                    const LhatValue *arguments, size_t count,
                    LhatValue *answers, int *answer_count)
 {
-    (void)machine;
     if (count == 0) {
         return;
     }
@@ -311,6 +325,13 @@ void godot_dispose(LhatMachine *machine, void *context,
         (Handle *)lhat_hostdata_pointer(arguments[0],
                                         module_of(context)->object_tag);
     if (handle != nullptr) {
+        // 12.5 lets a program give the box back before the collector would,
+        // and 8.12's cache is holding this wrapper for the next handover of
+        // the object. Leaving it there would answer with the emptied wrapper
+        // rather than build a new one.
+        if (handle->id != 0) {
+            lhat_machine_weak_cache_forget(machine, remembered_as(handle->id));
+        }
         memdelete(handle);
     }
 }
@@ -949,9 +970,37 @@ bool make_object(LhatMachine *machine, const Godot *module, Object *object,
     if (module == nullptr) {
         return false;
     }
+    // 05 の 8.12: the same object handed over again is the same value again.
+    // A wrapper nothing in L^ names is collected as any other value is and
+    // the entry goes with it, so this holds nothing alive; what it saves is
+    // the wrapper a body that meets one node every frame would otherwise
+    // build every frame. The id is read back off what the cache answered
+    // rather than trusted, since a narrowed key may not be the one asked for.
+    uint64_t id = object != nullptr ? (uint64_t)object->get_instance_id() : 0;
+    if (id != 0) {
+        LhatValue known = lhat_machine_weak_cache_get(machine,
+                                                      remembered_as(id));
+        const Handle *held =
+            (const Handle *)lhat_hostdata_pointer(known, module->object_tag);
+        if (held != nullptr && held->id == id) {
+            // A ptrcall's answer arrives with a count raised for this side,
+            // and the wrapper that stands already holds one. Taking the
+            // extra into a Ref that dies here is what gives it back.
+            if (adopt) {
+                RefCounted *counted = Object::cast_to<RefCounted>(object);
+                if (counted != nullptr) {
+                    Ref<RefCounted> given =
+                        Ref<RefCounted>::_gde_internal_constructor(counted);
+                }
+            }
+            *out = known;
+            return true;
+        }
+    }
+
     Handle *handle = memnew(Handle);
     if (object != nullptr) {
-        handle->id = object->get_instance_id();
+        handle->id = id;
         // Nothing else would keep a RefCounted alive while L^ holds it; a
         // Node belongs to the tree and is not held here on purpose.
         RefCounted *counted = Object::cast_to<RefCounted>(object);
@@ -970,6 +1019,11 @@ bool make_object(LhatMachine *machine, const Godot *module, Object *object,
                                     out)) {
         memdelete(handle);
         return false;
+    }
+    if (id != 0) {
+        // A cache with no room for it is a cache that answers nothing for it
+        // next time, which is where this began.
+        lhat_machine_weak_cache_put(machine, remembered_as(id), *out);
     }
     return true;
 }
