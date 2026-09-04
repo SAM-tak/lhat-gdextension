@@ -20,7 +20,7 @@ public^let^Main = def^{
 
 		# Named as the scene file names it, so main.tscn's `mob_scene =`
 		# line goes on meaning this field.
-		@export mob_scene : godot.PackedScene|nil^ = nil^,
+		@export mob_scene : godot.PackedScene|nil^= nil^,
 		score = 0,
 	},
 
@@ -53,7 +53,7 @@ public^let^Main = def^{
 
 	_on_MobTimer_timeout = p^self^{
 		let^scene = self^.mob_scene
-		if^scene fits^nil^{ return^ }
+		if^scene fits^nil^{ return^}
 
 		# A new instance of the Mob scene.
 		let^mob = scene.instantiate(

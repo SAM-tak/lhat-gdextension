@@ -5,12 +5,12 @@
 # RigidBody2D, PhysicsBody2D, Node and Object declare -- without a
 # forwarding member for any of them.
 
-module^ dodge.mob
+module^dodge.mob
 
-import^ godot
+import^godot
 
 @game @export_class
-public^let^ Mob = def^{
+public^let^Mob = def^{
 	self^{
 		abstract^gdobj : godot.RigidBody2D,
 		# GDScript writes $AnimatedSprite2D at every use; @node writes the

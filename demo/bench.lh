@@ -42,7 +42,7 @@ public^let^Bench = def^{
 		}
 	},
 
-	getDirect = f^self^, times:number^ -> number^{
+	getDirect = f^self^, times:number^-> number^{
 		var^sum = 0.0
 		for^i from^1 to^times {
 			sum += self^.gdobj.get_rotation()
@@ -50,7 +50,7 @@ public^let^Bench = def^{
 		return^sum
 	},
 
-	getDelegated = f^self^, times:number^ -> number^{
+	getDelegated = f^self^, times:number^-> number^{
 		var^sum = 0.0
 		for^i from^1 to^times {
 			sum += self^.get_rotation()
@@ -60,9 +60,9 @@ public^let^Bench = def^{
 
 	# An L^ member that answers a constant: the call itself, with no boundary
 	# on the other side of it. What is left over is the boundary's own cost.
-	nothing = f^self^ -> number^{ 1 },
+	nothing = f^self^-> number^{ 1 },
 
-	callLhat = f^self^, times:number^ -> number^{
+	callLhat = f^self^, times:number^-> number^{
 		var^seen = 0
 		for^i from^1 to^times {
 			seen += self^.nothing()
@@ -73,7 +73,7 @@ public^let^Bench = def^{
 	# isValid is the ObjectDB lookup and nothing else -- the handle holds an
 	# instance id rather than a pointer, so every call through the boundary
 	# pays this before it does anything.
-	valid = f^self^, times:number^ -> number^{
+	valid = f^self^, times:number^-> number^{
 		var^seen = 0
 		for^i from^1 to^times {
 			if^self^.isValid() { seen += 1 }

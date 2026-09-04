@@ -1,11 +1,11 @@
 # The player, in L^. The GDScript this replaces is player.gd, kept beside it.
 
-module^ dodge.player
+module^dodge.player
 
-import^ godot
+import^godot
 
 @game @export_class
-public^let^ Player = def^{
+public^let^Player = def^{
 	self^{
 		abstract^gdobj : godot.Area2D,
 		@node("AnimatedSprite2D") abstract^sprite : godot.AnimatedSprite2D,
@@ -66,7 +66,7 @@ public^let^ Player = def^{
 			self^.sprite.set_flip_h(velocity.x < 0.0)
 		elseif^velocity.y ≠ 0.0:
 			self^.sprite.set_animation("up")
-			self^.set_rotation(if^ velocity.y > 0.0: godot.PI() el^: 0.0 ;)
+			self^.set_rotation(if^velocity.y > 0.0: godot.PI() el^: 0.0 ;)
 		}
 	},
 

@@ -48,11 +48,11 @@ public^let^Spinner = def^{
 
 	report = f^self^{$"{self^.turns} frames, rotation {self^.get_rotation()}"},
 
-	_on_script_changed = p^self^ {
+	_on_script_changed = p^self^{
 		print("script changed")
 	},
 
-	_on_died = p^self^, message:any^ {
+	_on_died = p^self^, message:any^{
 		print(id^_on_died, message)
 	},
 }

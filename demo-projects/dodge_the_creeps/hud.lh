@@ -10,7 +10,7 @@ module^dodge.hud
 import^godot
 
 @game @export_class
-public^let^ Hud = def^{
+public^let^Hud = def^{
 	self^{
 		abstract^gdobj : godot.CanvasLayer,
 		@node("MessageLabel") abstract^message : godot.Label,

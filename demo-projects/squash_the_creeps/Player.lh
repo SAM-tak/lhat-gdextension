@@ -56,7 +56,7 @@ public^let^Player = def^{
 		velocity.x := direction.x * self^.speed
 		velocity.z := direction.z * self^.speed
 
-		if^self^.is_on_floor() and^ godot.Input.is_action_just_pressed("jump", false^) {
+		if^self^.is_on_floor() and^godot.Input.is_action_just_pressed("jump", false^) {
 			velocity.y += self^.jumpImpulse
 		}
 
@@ -70,11 +70,11 @@ public^let^Player = def^{
 		# move the body several times in one frame, so every slide is asked
 		# about; a frame with no slides runs none of this.
 		let^up = godot.vector3(0.0, 1.0, 0.0)
-		for^i from^ 0 to^ self^.get_slide_collision_count() - 1 {
+		for^i from^0 to^self^.get_slide_collision_count() - 1 {
 			let^met = self^.get_slide_collision(i)
 			let^other = met.get_collider(0)
-			if^!(other fits^godot.Node) { continue^ }
-			if^!other.is_in_group("mob") { continue^ }
+			if^!(other fits^godot.Node) { continue^}
+			if^!other.is_in_group("mob") { continue^}
 			if^up.dot(met.get_normal(0)) > 0.1 {
 				other.call("squash")
 				var^after = self^.get_velocity()

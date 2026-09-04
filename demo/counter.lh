@@ -4,21 +4,21 @@
 # are each node's own (02 の 14.3), which is what "one script, many nodes"
 # already means in L^.
 
-module^ demo.counter
+module^demo.counter
 
-public^let^ Counter = def^{
+public^let^Counter = def^{
 	self^{ ticks = 0, name = "?" },
 
 	# The engine calls these by name, the same way it calls a GDScript's.
-	_ready = p^self^ { print($"{self^.name} is ready") },
+	_ready = p^self^{ print($"{self^.name} is ready") },
 
-	_process = p^self^, delta:number^ { self^.ticks += 1 },
+	_process = p^self^, delta:number^{ self^.ticks += 1 },
 
-	tick = p^self^ { self^.ticks += 1 },
+	tick = p^self^{ self^.ticks += 1 },
 
-	count = f^self^ { return^ self^.ticks },
+	count = f^self^{ return^self^.ticks },
 
-	greet = f^self^, who:string^ {
-		return^ $"{self^.name} greets {who}"
+	greet = f^self^, who:string^{
+		return^$"{self^.name} greets {who}"
 	},
 }

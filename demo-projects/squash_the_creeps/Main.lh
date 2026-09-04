@@ -17,7 +17,7 @@ public^let^Main = def^{
 
 		# Named as the scene names it, so Main.tscn's `mob_scene =` line goes
 		# on meaning this field.
-		@export mob_scene : godot.PackedScene|nil^ = nil^,
+		@export mob_scene : godot.PackedScene|nil^= nil^,
 	},
 
 	override^new = f^obj { self^{ gdobj = obj } },
@@ -53,14 +53,14 @@ public^let^Main = def^{
 
 	_unhandled_input = p^self^, event:godot.InputEvent {
 		if^event.is_action_pressed("ui_accept", false^, false^)
-		   and^ self^.retry.is_visible() {
+		   and^self^.retry.is_visible() {
 			self^.get_tree().reload_current_scene()
 		}
 	},
 
 	_on_mob_timer_timeout = p^self^{
 		let^scene = self^.mob_scene
-		if^scene fits^nil^ { return^}
+		if^scene fits^nil^{ return^}
 		let^mob = scene.instantiate(godot.PackedScene.GenEditState.GEN_EDIT_STATE_DISABLED)
 		if^!(mob fits^godot.Node) { return^}
 

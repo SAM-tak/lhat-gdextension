@@ -1,3 +1,3 @@
-module^ demo.greeting
+module^demo.greeting
 
-public^let^ greet = f^ who:string^ { return^ $"hello, {who}" }
+public^let^greet = f^who:string^{ return^$"hello, {who}" }

@@ -1,8 +1,8 @@
 # The score, in L^. The GDScript this replaces was ScoreLabel.gd.
 
-module^ squash.scorelabel
+module^squash.scorelabel
 
-import^ godot
+import^godot
 
 @game @export_class
 public^let^ScoreLabel = def^{
