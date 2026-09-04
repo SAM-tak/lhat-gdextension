@@ -345,7 +345,7 @@ bool register_handles(LhatProgram *program, Godot *module)
         const char *signature;
         LhatHostFn call;
     } members[] = {
-        {"Callable", "isValid", "f^self -> bool^;", callable_is_valid},
+        {"Callable", "isValid", "f^self^-> bool^;", callable_is_valid},
         {"Callable", "getMethod", "f^self^-> string^;", callable_method},
         {"Callable", "getObject", "f^self^-> godot.Object;", callable_object},
         {"Callable", "call", "f^self^, ... -> any^;", callable_call},
