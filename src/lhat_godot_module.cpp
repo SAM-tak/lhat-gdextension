@@ -755,9 +755,9 @@ const Godot *register_godot(LhatProgram *program)
         // an override^ new is handed is where they all come from -- a value
         // meaning "no object" would be a wrapper whose isValid() is false by
         // construction, which is nothing a program has a use for.
-        {"isValid", "f^self^ -> bool^;", godot_is_valid},
-        {"className", "f^self^ -> string^;", godot_class_name},
-        {"isClass", "f^self^, string^ -> bool^;", godot_is_class},
+        {"isValid", "f^self^-> bool^;", godot_is_valid},
+        {"className", "f^self^-> string^;", godot_class_name},
+        {"isClass", "f^self^, string^-> bool^;", godot_is_class},
         // 8.8改: `get` and `set` are the engine's own and are generated onto
         // godot.Object with the rest of Object's methods, so nothing is
         // written for them here. `call` and `emit` are not: both are vararg,
@@ -815,21 +815,21 @@ const Godot *register_godot(LhatProgram *program)
         // a class kept private can never have a name for an icon to hang on,
         // and one file registers one name and so wears one icon.
         {"icon", LHAT_ANNOTATION_PUBLIC | LHAT_ANNOTATION_FILEUNIQUE,
-         "p^ string^;", nullptr, "export_class"},
+         "p^string^;", nullptr, "export_class"},
         {"export", LHAT_ANNOTATION_FIELD, nullptr, nullptr, nullptr},
         // GDScript's `@onready var x: Label = $X`, which is the shape a
         // script reaching its own children takes: the path is written once,
         // beside the type, and every use is a field read. Filled at
         // NOTIFICATION_READY for the reason @onready exists -- a node that
         // is not in the tree yet answers get_node with nothing.
-        {"node", LHAT_ANNOTATION_FIELD, "p^ string^;", nullptr, nullptr},
-        {"export_range", LHAT_ANNOTATION_FIELD, "p^ number^, number^, ...;",
+        {"node", LHAT_ANNOTATION_FIELD, "p^string^;", nullptr, nullptr},
+        {"export_range", LHAT_ANNOTATION_FIELD, "p^number^, number^, ...;",
          nullptr, nullptr},
         // An enum wants at least one name; a file filter is optional and
         // there may be several, which is what a bare variadic says.
-        {"export_enum", LHAT_ANNOTATION_FIELD, "p^ string^, ...:string^;",
+        {"export_enum", LHAT_ANNOTATION_FIELD, "p^string^, ...:string^;",
          nullptr, nullptr},
-        {"export_file", LHAT_ANNOTATION_FIELD, "p^ ...:string^;", nullptr,
+        {"export_file", LHAT_ANNOTATION_FIELD, "p^...:string^;", nullptr,
          nullptr},
         {"export_multiline", LHAT_ANNOTATION_FIELD, nullptr, nullptr,
          nullptr},
@@ -839,7 +839,7 @@ const Godot *register_godot(LhatProgram *program)
         // The words are strings and the channel is a number, so the tail
         // takes no type -- and none of them is required, since every part of
         // the configuration has a default (_get_rpc_config).
-        {"rpc", LHAT_ANNOTATION_MEMBER, "p^ ...;", nullptr, nullptr},
+        {"rpc", LHAT_ANNOTATION_MEMBER, "p^...;", nullptr, nullptr},
     };
     for (const auto &annotation : annotations) {
         if (!lhat_register_annotation(program, "godot", annotation.name,
@@ -869,7 +869,7 @@ const Godot *register_godot(LhatProgram *program)
     // to tell the two apart, the way GDScript's `if Engine.is_editor_hint():`
     // does. A subroutine of the module rather than a member of Object: it is
     // not about any object.
-    if (!lhat_register_func(program, "godot", "isEditorHint", "f^ -> bool^;",
+    if (!lhat_register_func(program, "godot", "isEditorHint", "f^-> bool^;",
                             godot_is_editor_hint, module)) {
         return nullptr;
     }

@@ -282,7 +282,7 @@ void packed_dispose(LhatMachine *machine, void *context,
     }
 }
 
-// 02 の 16.3 with 05 の 8.8: the walk `for^ x in^ a` runs. One walk of one
+// 02 の 16.3 with 05 の 8.8: the walk `for^x in^a` runs. One walk of one
 // array, made per iterate() call and freed by the release; the array rides
 // as the coroutine's `held`, which is what keeps the hostdata alive for the
 // walk's whole life. The cursor re-reads the array each step, so an append
@@ -370,7 +370,7 @@ bool answer_packed(LhatMachine *machine, const Godot *module, const P &from,
     return true;
 }
 
-// f^ -> godot.Packed*Array: an empty one, which is the only one there is to
+// f^-> godot.Packed*Array: an empty one, which is the only one there is to
 // make. What the engine already holds arrives through get() instead.
 template <typename P>
 void make_packed_of(LhatMachine *machine, void *context,
@@ -402,8 +402,8 @@ bool declare_packed(LhatProgram *program, Godot *module, const char *maker)
         const char *signature;
         LhatHostFn call;
     } members[] = {
-        {"size", kept(module, "f^self^ -> number^;"), packed_size<P>},
-        {"at", kept(module, String("f^self^, number^ -> ") + element + ";"),
+        {"size", kept(module, "f^self^-> number^;"), packed_size<P>},
+        {"at", kept(module, String("f^self^, number^-> ") + element + ";"),
          packed_at<P>},
         {"set", kept(module, String("p^self^, number^, ") + element + ";"),
          packed_set<P>},
@@ -414,7 +414,7 @@ bool declare_packed(LhatProgram *program, Godot *module, const char *maker)
         // Bare `iterate`: on a host type the two spellings name one member
         // (14.17改), and every name here is the library's.
         {"iterate",
-         kept(module, String("f^self^ -> c^{p^ -> ") + element + "};"),
+         kept(module, String("f^self^-> c^{p^-> ") + element + "};"),
          packed_iterate<P>},
     };
     for (const auto &member : members) {
@@ -425,7 +425,7 @@ bool declare_packed(LhatProgram *program, Godot *module, const char *maker)
     }
     return lhat_register_func(
         program, "godot", maker,
-        kept(module, String("f^ -> godot.") + name + ";"), make_packed_of<P>,
+        kept(module, String("f^-> godot.") + name + ";"), make_packed_of<P>,
         module);
 }
 

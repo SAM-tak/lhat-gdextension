@@ -230,7 +230,7 @@ void array_dispose(LhatMachine *machine, void *context,
     }
 }
 
-// 02 の 16.3 with 05 の 8.8: `for^ x in^ a` runs this. The array rides as the
+// 02 の 16.3 with 05 の 8.8: `for^x in^a` runs this. The array rides as the
 // coroutine's held value, which is what keeps the hostdata alive for the
 // walk; the cursor re-reads it each step, so an append mid-walk is seen.
 struct ArrayWalk {
@@ -644,8 +644,8 @@ bool declare_array(LhatProgram *program, Godot *module,
     }
 
     const Member members[] = {
-        {"size", kept(module, "f^self^ -> number^;"), array_size},
-        {"at", kept(module, String("f^self^, number^ -> ") + element + ";"),
+        {"size", kept(module, "f^self^-> number^;"), array_size},
+        {"at", kept(module, String("f^self^, number^-> ") + element + ";"),
          array_at},
         {"set", kept(module, String("p^self^, number^, ") + element + ";"),
          array_set},
@@ -655,7 +655,7 @@ bool declare_array(LhatProgram *program, Godot *module,
         // Bare `iterate`: on a host type the two spellings name one member
         // (14.17改), and every name here is the library's.
         {"iterate",
-         kept(module, String("f^self^ -> c^{p^ -> ") + element + "};"),
+         kept(module, String("f^self^-> c^{p^-> ") + element + "};"),
          array_iterate},
     };
     if (!declare_members(program, what, members,
@@ -672,7 +672,7 @@ bool declare_array(LhatProgram *program, Godot *module,
     }
     return lhat_register_func(
         program, "godot", maker_named(module, what->name),
-        kept(module, String("f^ -> godot.") + what->name + ";"), make_array_of,
+        kept(module, String("f^-> godot.") + what->name + ";"), make_array_of,
         (void *)what);
 }
 
@@ -688,15 +688,15 @@ bool declare_dictionary(LhatProgram *program, Godot *module,
     module->handle_tags[Variant::DICTIONARY] = tag;
 
     const Member members[] = {
-        {"size", kept(module, "f^self^ -> number^;"), dictionary_size},
-        {"at", kept(module, "f^self^, any^ -> any^;"), dictionary_at},
+        {"size", kept(module, "f^self^-> number^;"), dictionary_size},
+        {"at", kept(module, "f^self^, any^-> any^;"), dictionary_at},
         {"set", kept(module, "p^self^, any^, any^;"), dictionary_set},
-        {"has", kept(module, "f^self^, any^ -> bool^;"), dictionary_has},
+        {"has", kept(module, "f^self^, any^-> bool^;"), dictionary_has},
         {"erase", kept(module, "p^self^, any^;"), dictionary_erase},
-        {"keys", kept(module, "f^self^ -> godot.Array;"), dictionary_keys},
+        {"keys", kept(module, "f^self^-> godot.Array;"), dictionary_keys},
         {"clear", kept(module, "p^self^;"), dictionary_clear},
         {"dispose", kept(module, "p^self^;"), dictionary_dispose},
-        {"iterate", kept(module, "f^self^ -> c^{p^ -> any^};"),
+        {"iterate", kept(module, "f^self^-> c^{p^-> any^};"),
          dictionary_iterate},
     };
     if (!declare_members(program, what, members,
@@ -716,13 +716,13 @@ bool declare_dictionary(LhatProgram *program, Godot *module,
         value_reads[kind].kind = (uint8_t)kind;
         if (!lhat_register_member(
                 program, "godot", what->name, kept(module, "at" + named),
-                kept(module, "f^self^, any^ -> godot." + named + ";"),
+                kept(module, "f^self^, any^-> godot." + named + ";"),
                 dictionary_at_value, &value_reads[kind])) {
             return false;
         }
     }
     return lhat_register_func(program, "godot", "dictionary",
-                              kept(module, "f^ -> godot.Dictionary;"),
+                              kept(module, "f^-> godot.Dictionary;"),
                               make_dictionary_of, what);
 }
 

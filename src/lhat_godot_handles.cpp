@@ -120,7 +120,7 @@ void callable_dispose(LhatMachine *machine, void *context,
     }
 }
 
-// f^godot.Object, string^ -> godot.Callable
+// f^godot.Object, string^-> godot.Callable
 void make_callable_of(LhatMachine *machine, void *context,
                       const LhatValue *arguments, size_t count,
                       LhatValue *answers, int *answer_count)
@@ -267,7 +267,7 @@ void signal_dispose(LhatMachine *machine, void *context,
     }
 }
 
-// f^godot.Object, string^ -> godot.Signal
+// f^godot.Object, string^-> godot.Signal
 void make_signal_of(LhatMachine *machine, void *context,
                     const LhatValue *arguments, size_t count,
                     LhatValue *answers, int *answer_count)
@@ -345,15 +345,15 @@ bool register_handles(LhatProgram *program, Godot *module)
         const char *signature;
         LhatHostFn call;
     } members[] = {
-        {"Callable", "isValid", "f^self^ -> bool^;", callable_is_valid},
-        {"Callable", "getMethod", "f^self^ -> string^;", callable_method},
-        {"Callable", "getObject", "f^self^ -> godot.Object;", callable_object},
+        {"Callable", "isValid", "f^self -> bool^;", callable_is_valid},
+        {"Callable", "getMethod", "f^self^-> string^;", callable_method},
+        {"Callable", "getObject", "f^self^-> godot.Object;", callable_object},
         {"Callable", "call", "f^self^, ... -> any^;", callable_call},
         {"Callable", "dispose", "p^self^;", callable_dispose},
 
-        {"Signal", "getName", "f^self^ -> string^;", signal_name},
-        {"Signal", "getObject", "f^self^ -> godot.Object;", signal_object},
-        {"Signal", "isNull", "f^self^ -> bool^;", signal_is_null},
+        {"Signal", "getName", "f^self^-> string^;", signal_name},
+        {"Signal", "getObject", "f^self^-> godot.Object;", signal_object},
+        {"Signal", "isNull", "f^self^-> bool^;", signal_is_null},
         {"Signal", "connect", "p^self^, godot.Callable;", signal_connect},
         {"Signal", "disconnect", "p^self^, godot.Callable;",
          signal_disconnect},
@@ -373,10 +373,10 @@ bool register_handles(LhatProgram *program, Godot *module)
     // method on an object and a Signal one the object emits, so both are
     // made from an object and a name and there is no other way to have one.
     return lhat_register_func(program, "godot", "callable",
-                              "f^godot.Object, string^ -> godot.Callable;",
+                              "f^godot.Object, string^-> godot.Callable;",
                               make_callable_of, module) &&
            lhat_register_func(program, "godot", "signal",
-                              "f^godot.Object, string^ -> godot.Signal;",
+                              "f^godot.Object, string^-> godot.Signal;",
                               make_signal_of, module);
 }
 

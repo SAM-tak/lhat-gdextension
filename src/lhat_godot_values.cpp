@@ -209,7 +209,7 @@ void paired(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
-// f^self^, number^ -> T
+// f^self^, number^-> T
 template <typename T, typename Op, typename C>
 void scaled(LhatMachine *machine, void *context,
             const LhatValue *arguments, size_t count,
@@ -242,7 +242,7 @@ void scaled_last(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
-// f^self^ -> T
+// f^self^-> T
 template <typename T>
 void negated(LhatMachine *machine, void *context,
              const LhatValue *arguments, size_t count,
@@ -543,7 +543,7 @@ void make_projection(LhatMachine *machine, void *context,
 // functions and named as template arguments so that the body below is written
 // once and the list at the bottom stays a list.
 
-// f^self^ -> number^
+// f^self^-> number^
 template <typename T, double (*Get)(const T &)>
 void measures(LhatMachine *machine, void *context,
               const LhatValue *arguments, size_t count,
@@ -620,7 +620,7 @@ void asks_other(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
-// f^self^, number^ -> T
+// f^self^, number^-> T
 template <typename T, T (*Get)(const T &, double)>
 void turned(LhatMachine *machine, void *context,
             const LhatValue *arguments, size_t count,
@@ -635,7 +635,7 @@ void turned(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
-// f^self^, T, number^ -> T. A turn in 2D takes an angle and a turn in 3D an
+// f^self^, T, number^-> T. A turn in 2D takes an angle and a turn in 3D an
 // axis beside it, so the two do not share a shape.
 template <typename T, T (*Get)(const T &, const T &, double)>
 void turned_about(LhatMachine *machine, void *context,
@@ -654,7 +654,7 @@ void turned_about(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
-// f^self^, T, T, number^ -> T
+// f^self^, T, T, number^-> T
 template <typename T, T (*Get)(const T &, const T &, double)>
 void blended(LhatMachine *machine, void *context,
              const LhatValue *arguments, size_t count,
@@ -836,10 +836,10 @@ struct Signatures {
     {
         String path = String("godot.") + name;
         paired = kept(module, String("f^self^, ") + path + " -> " + path + ";");
-        scaled = kept(module, String("f^self^, number^ -> ") + path + ";");
-        scaled_last = kept(module, String("f^number^, self^ -> ") + path + ";");
-        unary = kept(module, String("f^self^ -> ") + path + ";");
-        text = kept(module, String("f^self^ -> string^;"));
+        scaled = kept(module, String("f^self^, number^-> ") + path + ";");
+        scaled_last = kept(module, String("f^number^, self^-> ") + path + ";");
+        unary = kept(module, String("f^self^-> ") + path + ";");
+        text = kept(module, String("f^self^-> string^;"));
     }
 };
 
@@ -910,7 +910,7 @@ template <typename T, typename R, R (*Get)(const T &)>
 bool part(LhatProgram *program, Godot *module, const char *name)
 {
     const char *signature =
-        kept(module, String("f^self^ -> godot.") + Named<R>::spelling() + ";");
+        kept(module, String("f^self^-> godot.") + Named<R>::spelling() + ";");
     return member(program, Named<T>::spelling(), name, signature,
                   reads<T, R, Get>, module);
 }
@@ -963,7 +963,7 @@ bool name_of(LhatValue value, String *out)
     return true;
 }
 
-// f^self^, string^ -> T
+// f^self^, string^-> T
 template <typename T>
 void object_get(LhatMachine *machine, void *context,
                 const LhatValue *arguments, size_t count,
@@ -1009,7 +1009,7 @@ bool crossing(LhatProgram *program, Godot *module)
 {
     String name = String(Named<T>::spelling());
     String path = String("godot.") + name;
-    const char *reading = kept(module, String("f^self^, string^ -> ") + path + ";");
+    const char *reading = kept(module, String("f^self^, string^-> ") + path + ";");
     const char *writing = kept(module, String("p^self^, string^, ") + path + ";");
     const char *reader = kept(module, String("get") + name);
     const char *writer = kept(module, String("set") + name);
@@ -1025,7 +1025,7 @@ template <typename T, double (*Get)(const T &)>
 bool measure(LhatProgram *program, Godot *module, const char *name)
 {
     return member(program, Named<T>::spelling(), name,
-                  kept(module, "f^self^ -> number^;"), measures<T, Get>,
+                  kept(module, "f^self^-> number^;"), measures<T, Get>,
                   module);
 }
 
@@ -1061,7 +1061,7 @@ bool turn(LhatProgram *program, Godot *module, const char *name)
 {
     String path = String("godot.") + Named<T>::spelling();
     return member(program, Named<T>::spelling(), name,
-                  kept(module, String("f^self^, number^ -> ") + path + ";"),
+                  kept(module, String("f^self^, number^-> ") + path + ";"),
                   turned<T, Get>, module);
 }
 
@@ -1071,7 +1071,7 @@ bool turn_about(LhatProgram *program, Godot *module, const char *name)
     String path = String("godot.") + Named<T>::spelling();
     return member(program, Named<T>::spelling(), name,
                   kept(module, String("f^self^, ") + path +
-                                   ", number^ -> " + path + ";"),
+                                   ", number^-> " + path + ";"),
                   turned_about<T, Get>, module);
 }
 
@@ -1081,7 +1081,7 @@ bool blend(LhatProgram *program, Godot *module, const char *name)
     String path = String("godot.") + Named<T>::spelling();
     return member(program, Named<T>::spelling(), name,
                   kept(module, String("f^self^, ") + path +
-                                   ", number^ -> " + path + ";"),
+                                   ", number^-> " + path + ";"),
                   blended<T, Get>, module);
 }
 
@@ -1361,7 +1361,7 @@ bool register_values(LhatProgram *program, Godot *module)
            // holds and mean nothing on their own -- so a RID answers its
            // number and is otherwise carried about whole.
            declare<RID>(program, module) &&
-           member(program, "RID", "getId", kept(module, "f^self^ -> number^;"),
+           member(program, "RID", "getId", kept(module, "f^self^-> number^;"),
                   rid_id, module) &&
            composed<RID, false>(program, module) &&
            crossing<RID>(program, module) &&
