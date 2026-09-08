@@ -42,12 +42,32 @@ const Godot *module_of(void *context)
     return (const Godot *)context;
 }
 
-Object *resolve(const Handle *handle)
+// The engine's object under an id, and NULL where the id names something
+// that has been freed: an id carries the generation of the slot it names, so
+// ObjectDB answers nothing for one whose object has gone -- which a raw
+// pointer could not tell from a slot handed out again.
+//
+// ObjectDB and nothing else. What godot-cpp's own instance_from_id adds on
+// top is a ptrcall of the engine's utility function to reach the very same
+// slot, and this side already holds the id it would encode.
+GodotObject *owner_at(uint64_t id)
 {
-    if (handle == nullptr || handle->id == 0) {
+    if (id == 0) {
         return nullptr;
     }
-    return UtilityFunctions::instance_from_id((int64_t)handle->id);
+    return (GodotObject *)
+        internal::gdextension_interface_object_get_instance_from_id(
+            (GDObjectInstanceID)id);
+}
+
+// The same, as something with methods on it. A caller that means to reach
+// the object through godot-cpp -- callv, get_class, a cast -- wants the
+// instance binding, which is the one step past the slot.
+Object *resolve(const Handle *handle)
+{
+    GodotObject *owner = handle != nullptr ? owner_at(handle->id) : nullptr;
+    return owner != nullptr ? internal::get_object_instance_binding(owner)
+                            : nullptr;
 }
 
 // 05 の 8.12: what an object is remembered under in the machine's weak cache.
@@ -65,19 +85,13 @@ const void *remembered_as(uint64_t id)
     return (const void *)(uintptr_t)id;
 }
 
-// The engine's object and nothing else, which is all a ptrcall is handed.
-//
-// resolve above goes the way godot-cpp goes: a utility function, and then
-// get_object_instance_binding to hand back something with methods on it. A
-// bound method calls none of them -- it has a MethodBind and wants the
-// pointer to call it against -- so this asks ObjectDB and stops there.
+// The engine's object and nothing else, which is all a ptrcall is handed: a
+// bound method has a MethodBind and wants the pointer to call it against, so
+// it stops at the slot rather than asking for the binding resolve returns.
 //
 // Worth a fifth of what isValid cost and about a twentieth of a bound call;
 // ObjectDB itself was never the expensive part, and neither, it turns out, is
 // a binding already made. What this buys is not paying for either.
-//
-// The id still answers the question a raw pointer could not: it carries a
-// generation, so a freed object gives NULL here rather than a recycled slot.
 GodotObject *owner_of(LhatValue value, const Godot *module)
 {
     if (module == nullptr) {
@@ -85,11 +99,7 @@ GodotObject *owner_of(LhatValue value, const Godot *module)
     }
     const Handle *handle =
         (const Handle *)lhat_hostdata_pointer(value, module->object_tag);
-    if (handle == nullptr || handle->id == 0) {
-        return nullptr;
-    }
-    return (GodotObject *)internal::gdextension_interface_object_get_instance_from_id(
-        (GDObjectInstanceID)handle->id);
+    return handle != nullptr ? owner_at(handle->id) : nullptr;
 }
 
 Object *receiver(const LhatValue *arguments, size_t count, void *context)
