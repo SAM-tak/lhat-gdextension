@@ -985,6 +985,22 @@ cmake --preset release      # 初回は godot-cpp を取得する
 cmake --build --preset release
 ```
 
+**コンパイラは clang-cl**（Visual Studio 同梱の `VC\Tools\Llvm\x64\bin`。
+`devshell.ps1` を読み込めば PATH に載る）。プリセットが指定しているので
+コマンドは変わらない。理由は 03 の 5.2改——**命令ディスパッチが計算 goto に
+なるのは `__clang__` / `__GNUC__` のときだけ**で、MSVC にはその拡張が無く
+switch を読む。dodge の bench で実測（200,000回、9標本の最小）:
+
+| | MSVC | clang-cl |
+|---|---|---|
+| L^ のループ（ディスパッチが決める） | 9,848µs | **5,796µs** |
+| L^ のメソッド呼び | 25,872µs | 22,490µs |
+| 束縛したエンジン呼び | 113,949µs | 101,277µs |
+| GDScript の同じループ（対照） | 4,411µs | 4,458µs |
+
+dll は14%大きくなる。MSVC でも建つ——`-DCMAKE_C_COMPILER=cl
+-DCMAKE_CXX_COMPILER=cl` を渡せばよく、godot-cpp も別の木に建つ。
+
 これで5つとも出る。Godot は最適化の有無ではなく**どのランタイムが読むか**で
 呼び分けていて、`editor` / `template_debug` / `template_release` は排他。
 template の2つには、コアの前段（字句・構文・検査・コンパイル）を持たない
@@ -1024,11 +1040,12 @@ liblhat.windows.template_release.x86_64.dll
 liblhat.windows.template_release.vmonly.x86_64.dll
 ```
 
-godot-cpp はランタイムごとに**1回だけ**、`build/godot-cpp-<target>/` に
-最適化ありで作られ、`debug` / `fastdebug` の段もそれをリンクする（拡張の
-デバッグビルドは godot-cpp のデバッグビルドではない。両方 `/MT` なので
-リンクは通る——実測済み）。初回の configure が作り、以後は在るものを使う。
-godot-cpp 側を変えたら `build/godot-cpp-<target>/` を消す。
+godot-cpp はランタイムとコンパイラの組ごとに**1回だけ**、
+`build/godot-cpp-<target>-<compiler>/` に最適化ありで作られ、`debug` /
+`fastdebug` の段もそれをリンクする（拡張のデバッグビルドは godot-cpp の
+デバッグビルドではない。両方 `/MT` なのでリンクは通る——実測済み）。
+初回の configure が作り、以後は在るものを使う。godot-cpp 側を変えたら
+その木を消す。
 
 `cmake --build --preset <x> --target clean` は dll のほか `.pdb` `.ilk` `.exp`
 も消す。設定違いを試すときに `demo/bin/` に前の段の pdb が残らない。

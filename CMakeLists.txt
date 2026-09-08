@@ -53,10 +53,16 @@ if(LHAT_ALL_RUNTIMES)
     foreach(target editor template_debug template_release
                    template_debug-vmonly template_release-vmonly)
         # A -vmonly tree is the same Godot target on the core without its
-        # front end (LHAT_VM_ONLY below).
+        # front end (LHAT_VM_ONLY below) -- and so wants the very godot-cpp
+        # its twin wants. Whichever of the two is configured first builds it,
+        # so they are configured one after the other: side by side, both would
+        # write that tree at once, and each would see the other's half-written
+        # files.
         string(REGEX REPLACE "-vmonly$" "" godot_target "${target}")
+        set(after "")
         if(target MATCHES "-vmonly$")
             set(vm_only ON)
+            set(after DEPENDS ${godot_target})
         else()
             set(vm_only OFF)
         endif()
@@ -67,6 +73,10 @@ if(LHAT_ALL_RUNTIMES)
                 -G "${CMAKE_GENERATOR}"
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+                # The sub-tree would find a compiler of its own otherwise,
+                # and cl.exe is on the PATH this is configured from.
+                -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+                -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                 -DGODOTCPP_TARGET=${godot_target}
                 -DLHAT_VM_ONLY=${vm_only}
                 -DLHAT_ALL_RUNTIMES=OFF
@@ -75,6 +85,7 @@ if(LHAT_ALL_RUNTIMES)
             # it every time rather than once.
             BUILD_ALWAYS ON
             INSTALL_COMMAND ""
+            ${after}
         )
     endforeach()
     return()
@@ -168,17 +179,24 @@ endif()
 # LHAT_GODOT_CPP_DIR somewhere else is for, and the version there is the
 # version the extension is built against, tag or no tag.
 #
-# And built once per runtime, not once per tree. Which runtime a library is
-# for is all godot-cpp needs to know, so it is built in cmake/godot-cpp's
-# tree, always optimised, and every level of this tree links the same
-# library: the debug build of the extension is not a debug build of
-# godot-cpp. As with the checkout, building it is only ever how the export
-# comes to exist -- a godot-cpp that changed underneath is rebuilt by
-# removing its tree.
+# And built once per runtime and compiler, not once per tree. Which runtime a
+# library is for is all godot-cpp needs to know, so it is built in
+# cmake/godot-cpp's tree, always optimised, and every level of this tree links
+# the same library: the debug build of the extension is not a debug build of
+# godot-cpp. The compiler is in the name because a static library is not
+# handed between two of them -- and because switching would otherwise link
+# whatever the other one left there. As with the checkout, building it is only
+# ever how the export comes to exist -- a godot-cpp that changed underneath is
+# rebuilt by removing its tree.
 set(LHAT_GODOT_CPP_BUILD_DIR
-    "${CMAKE_SOURCE_DIR}/build/godot-cpp-${GODOTCPP_TARGET}"
+    "${CMAKE_SOURCE_DIR}/build/godot-cpp-${GODOTCPP_TARGET}-${CMAKE_CXX_COMPILER_ID}"
     CACHE PATH "Where godot-cpp for this runtime is built, once.")
-if(NOT EXISTS "${LHAT_GODOT_CPP_BUILD_DIR}/godot-cpp-targets.cmake")
+# What says the tree is there is the library it left, not the two .cmake
+# files beside it: those are written when it is configured, so a build that
+# stopped half way would look finished here and the link would then fail on a
+# library that was never made.
+file(GLOB LHAT_GODOT_CPP_BUILT "${LHAT_GODOT_CPP_BUILD_DIR}/bin/*")
+if(NOT LHAT_GODOT_CPP_BUILT)
     message(STATUS "godot-cpp: building ${GODOTCPP_TARGET} into ${LHAT_GODOT_CPP_BUILD_DIR}")
     execute_process(
         COMMAND ${CMAKE_COMMAND}
