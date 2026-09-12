@@ -1078,6 +1078,13 @@ template の素の行は VM だけの版を指し、前段入りの版は `lhat_
 行（タグが1つ多い）に置いてある。`lhat_text` は Text で書き出したゲームに
 だけ立つ（次の「書き出し」）。
 
+**書いてある行は建てるものだけ**。行が指すファイルが無ければ、その機械では
+拡張の読み込みが失敗する。いま在るのはデスクトップ3つ——Windows と Linux の
+`x86_64`、そして macOS の `universal` 1本（macOS では x86_64 も arm64 も
+`universal` タグに真を答えるので、universal バイナリ1つで両方を賄う）。
+Android・iOS・Web はタグもツールチェーンも別で、iOS に至っては共有ライブラリ
+ではなく静的ライブラリを要求する。
+
 ## 書き出し
 
 書き出し preset の Options に **Lhat › Script Export Mode** が出る
