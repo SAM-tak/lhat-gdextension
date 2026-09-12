@@ -323,14 +323,13 @@ void LhatHighlighter::read_meanings(const String &text) const
         return;
     }
 
-    host::Units units = host::units_for(showing->get_path());
-    host::hold(&units, showing->get_path(), text);
-    LhatProgram *program = host::program_for(&units);
-    if (program == nullptr) {
-        return;
-    }
+    // The same checked buffer _validate reads, rather than a program of this
+    // one's own: the two questions are asked of one keystroke, and building
+    // a program to ask with is what cost (lhat_language.h).
+    LhatLanguage *language = LhatLanguage::get_singleton();
     const LhatUnit *root =
-        lhat_program_check(program, units.path.utf8().get_data());
+        language != nullptr ? language->buffer_checked(showing->get_path(), text)
+                            : nullptr;
     if (root != nullptr) {
         // 03 の 3.1: a unit that did not check still resolved what it could,
         // and half a colouring beats none while somebody is mid-word.
@@ -340,7 +339,6 @@ void LhatHighlighter::read_meanings(const String &text) const
             lhat_unit_semantic_names(root, meanings.ptrw(), count);
         }
     }
-    lhat_program_free(program);
 }
 
 // Answered in offset order, so this halves its way in rather than scanning

@@ -318,6 +318,10 @@ void LhatLanguage::_init()
 // it made (let_go), and the editor is on its way out.
 void LhatLanguage::_finish()
 {
+    if (buffer != nullptr) {
+        lhat_program_free(buffer);
+        buffer = nullptr;
+    }
     if (machine != nullptr) {
         lhat_machine_dispose(machine);
         machine = nullptr;
@@ -328,6 +332,48 @@ void LhatLanguage::_finish()
     }
     host::dispose_godot();
     lhat_registry_dispose();
+}
+
+// 05 の 5.7 is what a keystroke is here: the text is held, what was made of
+// it is retired, and the check reads it again. Every unit rather than the one
+// typed in -- a file this one requires may have changed on disk underneath --
+// and a text that reads as it did answers 0 for the cost of a read.
+const LhatUnit *LhatLanguage::buffer_checked(const String &path,
+                                             const String &text) const
+{
+    host::Alone alone;
+
+    if (buffer != nullptr && buffer_path != path) {
+        lhat_program_free(buffer);
+        buffer = nullptr;
+    }
+    if (buffer == nullptr) {
+        buffer_units = host::units_for(path);
+        buffer = host::program_for(&buffer_units);
+        if (buffer == nullptr) {
+            return nullptr;
+        }
+        buffer_path = path;
+    }
+    host::hold(&buffer_units, path, text);
+
+    // The paths first: invalidating retires units rather than freeing them,
+    // but a walk that rewrites what it walks is a habit worth not having.
+    LocalVector<CharString> paths;
+    for (const LhatUnit *unit = lhat_program_units(buffer); unit != nullptr;
+         unit = lhat_unit_next(unit)) {
+        paths.push_back(CharString(lhat_unit_path(unit)));
+    }
+    for (const CharString &named : paths) {
+        lhat_program_invalidate(buffer, named.get_data());
+    }
+
+    const LhatUnit *root = lhat_program_check(
+        buffer, host::unit_path(buffer_units, path).utf8().get_data());
+    // Nothing here is compiled and nothing runs, so no closure anywhere
+    // holds a retired body and the trees can go (05 の 5.7).
+    lhat_program_discard_retired(buffer);
+    return root;
 }
 
 Dictionary LhatLanguage::_validate(const String &script, const String &path,
@@ -350,23 +396,18 @@ Dictionary LhatLanguage::_validate(const String &script, const String &path,
 
     // The text, not the file -- the editor asks while the buffer is unsaved,
     // and for a script whose file does not exist yet.
-    host::Units units = host::units_for(path);
-    host::hold(&units, path, script);
-
-    LhatProgram *program = host::program_for(&units);
+    const LhatUnit *root = buffer_checked(path, script);
+    LhatProgram *program = buffer_program();
     if (program == nullptr) {
         out["valid"] = false;
         return out;
     }
 
-    const LhatUnit *root =
-        lhat_program_check(program, units.path.utf8().get_data());
     bool ok = root != nullptr && !lhat_program_has_errors(program);
     out["valid"] = ok;
     if (!ok && validate_errors) {
         out["errors"] = host::diagnostics_as_errors(program, path);
     }
-    lhat_program_free(program);
     return out;
 }
 

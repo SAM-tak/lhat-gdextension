@@ -81,6 +81,23 @@ class LhatLanguage : public ScriptLanguageExtension {
     LhatProgram *program = nullptr;
     LhatMachine *machine = nullptr;
 
+    // 03 の 1.1, asked twice a keystroke: the colouring wants what the
+    // checker resolved and the error list wants what it refused. Each used
+    // to build a program to ask with and throw it away -- register_godot,
+    // every engine class, per question per keystroke -- so one is kept.
+    //
+    // One file's graph at a time. The editor types in one file and both
+    // questions are about that one, so what the program holds is that unit
+    // and what it requires, which is exactly the set an error list for that
+    // file draws on (diagnostics_as_errors walks the program). Another path
+    // arriving replaces it, which is the cost the old shape paid every time.
+    //
+    // Mutable because the two questions are const to the engine and this is
+    // the answer to both.
+    mutable host::Units buffer_units;
+    mutable LhatProgram *buffer = nullptr;
+    mutable String buffer_path;
+
     bool rebuilding = false;  // put_back writes scripts, and a write asks again
 
 protected:
@@ -98,6 +115,14 @@ public:
 
     LhatMachine *world_machine() const { return machine; }
     host::Units *world_units() { return &units; }
+
+    // The buffer at `path` holding `text`, checked. NULL when there is no
+    // program to check it with. What comes back, and the program it belongs
+    // to, stand until this is called with another path -- so a caller reads
+    // what it needs before answering the engine.
+    const LhatUnit *buffer_checked(const String &path,
+                                   const String &text) const;
+    LhatProgram *buffer_program() const { return buffer; }
 
     // 05 の 5.7, through lhat_reload: the texts of `changed` are handed to
     // the program, which retires what they reach and reads it back; then the

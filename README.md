@@ -1240,6 +1240,4 @@ godot --path demo-projects/dodge_the_creeps
   `let^Godot = require^"lhat/Godot.lh"` の `Godot` に色が付かないのは、
   検査器が単位の公開表を `is_module` と見ないため。色付けの都合ではなく
   意味論の判断なので、そこから決める必要がある
-- ハイライタが打鍵ごとに検査していて、`_validate` の分と合わせて2回になる。
-  目に見えて重ければ、本文をキーにした共有を `LhatLanguage` に置く
-  ——先に仕組みを作らず、測ってから
+
