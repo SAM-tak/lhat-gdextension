@@ -7,6 +7,7 @@
 
 #include <godot_cpp/classes/editor_interface.hpp>
 #include <godot_cpp/classes/editor_settings.hpp>
+#include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/core/class_db.hpp>
@@ -14,6 +15,9 @@
 #include <godot_cpp/core/memory.hpp>
 
 #include "lhat.h"
+#if LHAT_WITH_FRONTEND
+#include "lhat/completion.h"
+#endif
 #include "lhat_godot_enums.h"
 #include "lhat_godot_module.h"
 #include "lhat_debugger.h"
@@ -986,17 +990,237 @@ ScriptLanguage::ScriptNameCasing LhatLanguage::_preferred_file_name_casing()
 // So the shape is written out, with the answer being that nothing was found.
 // 07 の lsp/ already knows how to complete a name; _complete_code is where
 // that would be hooked up, and until it is this is what "no" looks like.
+
+#if LHAT_WITH_FRONTEND
+namespace {
+
+// core/object/script_language.h's two enums. They are the engine's own and
+// are not bound, so a GDExtension reads them out of the source and writes
+// the numbers, as it does for every unbound constant.
+enum {
+    KIND_CLASS = 0,
+    KIND_FUNCTION = 1,
+    KIND_VARIABLE = 3,
+    KIND_MEMBER = 4,
+    KIND_CONSTANT = 6,
+    KIND_FILE_PATH = 8,
+    KIND_PLAIN_TEXT = 9,
+    KIND_KEYWORD = 10,
+};
+enum { WHERE_LOCAL = 0, WHERE_OTHER = 1 << 10 };
+
+// Every field the engine reads off one, since a dictionary missing any of
+// them is an option it drops without a word
+// (script_language_extension.h's ERR_CONTINUE).
+Dictionary offered(int kind, const String &display, const String &insert,
+                   int where)
+{
+    Dictionary option;
+    option["kind"] = kind;
+    option["display"] = display;
+    option["insert_text"] = insert;
+    option["font_color"] = Color(1, 1, 1);
+    option["icon"] = Ref<Resource>();
+    option["default_value"] = Variant();
+    option["location"] = where;
+    return option;
+}
+
+int kind_of(LhatCompletionKind kind)
+{
+    switch (kind) {
+        case LHAT_COMPLETION_VARIABLE: return KIND_VARIABLE;
+        case LHAT_COMPLETION_FIELD: return KIND_MEMBER;
+        // 02 の 14.10 tells the two apart by what they are reached through;
+        // the engine draws either as a function, which both are.
+        case LHAT_COMPLETION_METHOD: return KIND_FUNCTION;
+        case LHAT_COMPLETION_FUNCTION: return KIND_FUNCTION;
+        case LHAT_COMPLETION_CLASS: return KIND_CLASS;
+        case LHAT_COMPLETION_MODULE_NAME: return KIND_CLASS;
+        case LHAT_COMPLETION_WORD_OF_LANGUAGE: return KIND_KEYWORD;
+        case LHAT_COMPLETION_CONSTANT: return KIND_CONSTANT;
+    }
+    return KIND_PLAIN_TEXT;
+}
+
+// What the list shows against what it inserts. A type is worth reading and
+// not worth typing, so it is shown and not inserted -- which is the shape
+// GDScript draws a member in as well.
+void offer_items(Array &options, const LhatCompletionItem *items, size_t count)
+{
+    for (size_t i = 0; i < count; i++) {
+        String label = String::utf8(items[i].label);
+        String detail = String::utf8(items[i].detail);
+        String display = detail.is_empty() ? label : label + " : " + detail;
+        bool word = items[i].kind == LHAT_COMPLETION_WORD_OF_LANGUAGE;
+        options.push_back(offered(kind_of(items[i].kind), display, label,
+                                  word ? WHERE_OTHER : WHERE_LOCAL));
+    }
+}
+
+// One segment of a path, which is what the editor filters on: it reads the
+// word under the caret back to the first character a name cannot hold, so a
+// '.' or a '/' already written is not part of what it matches -- and must
+// not be part of what is inserted either.
+String segment_after(const String &whole, const String &head, const String &mark)
+{
+    if (!whole.begins_with(head)) {
+        return String();
+    }
+    String rest = whole.substr(head.length());
+    int cut = rest.find(mark);
+    // A folder keeps its separator, so that choosing one goes on rather than
+    // looking finished.
+    return cut < 0 ? rest : rest.substr(0, cut + 1);
+}
+
+// 05 の 5.1: a require^ resolves against the unit that writes it, so what
+// may stand in one is what lies beside that file.
+void offer_units(Array &options, const String &path, const String &typed)
+{
+    String base = path.get_base_dir();
+    int64_t mark = typed.rfind("/");
+    String head = mark < 0 ? String() : typed.substr(0, mark + 1);
+
+    // The relative path is carried down rather than worked back out of an
+    // absolute one: "res://" is a scheme with a double separator in it, and
+    // every way of taking a prefix off that has a case it gets wrong.
+    LocalVector<String> walking;
+    walking.push_back(String());
+    HashMap<String, bool> seen;
+    while (!walking.is_empty()) {
+        String under = walking[walking.size() - 1];
+        walking.remove_at(walking.size() - 1);
+        String here = under.is_empty() ? base : base.path_join(under);
+        Ref<DirAccess> dir = DirAccess::open(here);
+        if (dir.is_null()) {
+            continue;
+        }
+        PackedStringArray folders = dir->get_directories();
+        for (int i = 0; i < folders.size(); i++) {
+            // .godot and its like belong to the engine, not to the writer.
+            if (!folders[i].begins_with(".")) {
+                walking.push_back(under.is_empty()
+                                      ? folders[i]
+                                      : under.path_join(folders[i]));
+            }
+        }
+        PackedStringArray files = dir->get_files();
+        for (int i = 0; i < files.size(); i++) {
+            if (files[i].get_extension().to_lower() != "lh") {
+                continue;
+            }
+            String whole = under.is_empty() ? files[i]
+                                            : under.path_join(files[i]);
+            String piece = segment_after(whole, head, "/");
+            if (piece.is_empty() || seen.has(piece)) {
+                continue;
+            }
+            seen.insert(piece, true);
+            options.push_back(offered(KIND_FILE_PATH, piece, piece,
+                                      WHERE_OTHER));
+        }
+    }
+}
+
+// The one module this host registers under. What stands beneath it are the
+// singletons, and the only list of those is the generated table, which
+// nothing here can walk -- so the root is offered and the rest is typed,
+// until there is a list to read.
+void offer_modules(Array &options, const String &typed)
+{
+    if (typed.is_empty() || String("godot").begins_with(typed)) {
+        options.push_back(offered(KIND_CLASS, "godot", "godot", WHERE_OTHER));
+    }
+}
+
+}  // namespace
+#endif  // LHAT_WITH_FRONTEND
+
 Dictionary LhatLanguage::_complete_code(const String &code, const String &path,
                                         Object *owner) const
 {
-    (void)code;
-    (void)path;
     (void)owner;
     Dictionary out;
     out["result"] = (int)OK;
     out["force"] = false;
     out["call_hint"] = String();
-    out["options"] = Array();
+    Array options;
+#if LHAT_WITH_FRONTEND
+    // CodeEdit marks the caret with a character the text cannot otherwise
+    // hold (code_edit.cpp), and that is the whole of what says where to
+    // answer for -- the virtual is handed no position of its own.
+    int64_t caret = code.find(String::chr(0xFFFF));
+    if (caret < 0) {
+        out["options"] = options;
+        return out;
+    }
+    String before = code.substr(0, caret);
+    String text = before + code.substr(caret + 1);
+    CharString bytes = text.utf8();
+    uint32_t offset = (uint32_t)before.utf8().length();
+
+    // 07 の 4 章: three of the four questions are the text's to answer and
+    // are asked before a check is spent. A member access is the one that
+    // needs the checker, since only the checker knows a dot was an access
+    // rather than the point of a number.
+    uint32_t from = offset;
+    LhatCompletionAsk ask = lhat_completion_ask_text(
+        bytes.get_data(), (size_t)bytes.length(), offset, &from);
+    String typed = String::utf8(bytes.get_data() + from,
+                                (int)(offset - from));
+
+    if (ask == LHAT_COMPLETION_MODULE) {
+        offer_modules(options, typed);
+    } else if (ask == LHAT_COMPLETION_UNIT) {
+        offer_units(options, path, typed);
+    } else {
+        // The reading above never answers MEMBER -- it cannot, since only
+        // the checker knows a dot was an access rather than the point of a
+        // number -- so what it did answer is asked again of the checked
+        // unit, NOTHING included: that is the answer a member access wears
+        // until there is a unit to ask.
+        const LhatUnit *unit = buffer_checked(path, text);
+        LocalVector<LhatCompletionItem> items;
+        size_t count = 0;
+        if (unit != nullptr) {
+            ask = lhat_unit_completion_ask(unit, offset, &from);
+            typed = String::utf8(bytes.get_data() + from,
+                                 (int)(offset - from));
+            if (ask == LHAT_COMPLETION_MEMBER || ask == LHAT_COMPLETION_WORD) {
+                // Filled and counted in one pass. Measuring first is the
+                // shape the call takes, but the measuring costs what the
+                // filling costs -- a registered engine class is two hundred
+                // members and eight milliseconds of them -- so room is
+                // guessed at instead and asked again only when the guess
+                // was short. Nothing so far has needed the second ask.
+                items.resize(256);
+                count = lhat_unit_completion_items(unit, offset, items.ptr(),
+                                                   items.size());
+                if (count > items.size()) {
+                    items.resize(count);
+                    lhat_unit_completion_items(unit, offset, items.ptr(),
+                                               count);
+                }
+            }
+        }
+        // 03 の 3.1: a buffer half typed is a unit that did not check, and
+        // the words of the language are still what may stand in it.
+        if (count == 0 && ask == LHAT_COMPLETION_WORD) {
+            items.resize(128);
+            count = lhat_completion_words(items.ptr(), items.size());
+            if (count > items.size()) {
+                items.resize(count);
+                lhat_completion_words(items.ptr(), count);
+            }
+        }
+        offer_items(options, items.ptr(), count);
+    }
+#else
+    (void)code;
+    (void)path;
+#endif
+    out["options"] = options;
     return out;
 }
 
