@@ -1,0 +1,163 @@
+# Builds the five libraries on the three desktops, and runs them.
+#
+# A GDExtension that compiles has proved very little: everything it does
+# happens inside a library the engine opens at run time, and a registration
+# the checker refuses leaves every script unattached without a word from the
+# compiler. So scripts/smoke.sh runs the demo projects under a real Godot,
+# and that is the half of this that finds things.
+#
+# The core is a sibling checkout here as it is on a desk (LHAT_CORE_DIR
+# defaults to ../lhat), so both repositories are checked out side by side.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push on the same branch supersedes the run before it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.7.1-stable
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: lhat-gdextension
+    strategy:
+      # One platform failing should not hide what the other two would say.
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows / clang-cl
+            os: windows-latest
+            godot: Godot_v4.7.1-stable_win64.exe.zip
+          - name: linux / gcc
+            os: ubuntu-latest
+            godot: Godot_v4.7.1-stable_linux.x86_64.zip
+          - name: macos / apple clang, universal
+            os: macos-latest
+            godot: Godot_v4.7.1-stable_macos.universal.zip
+            # One build answers both Apple architectures, and the engine's
+            # `universal` tag is true for either -- which is why the
+            # .gdextension has one macOS row rather than two.
+            #
+            # Passed through the environment rather than interpolated: the
+            # ';' that separates a CMake list is also the shell's command
+            # separator, and unquoted it runs "x86_64" as a command.
+            extra: '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: lhat-gdextension
+
+      - uses: actions/checkout@v5
+        with:
+          repository: SAM-tak/lhat
+          path: lhat
+
+      # What scripts/devshell.ps1 does locally: the Ninja presets invoke the
+      # compiler directly, so INCLUDE / LIB / PATH must come from vcvars.
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: lhat-gdextension
+        run: |
+          . ./scripts/devshell.ps1
+          $variables = 'PATH', 'INCLUDE', 'LIB', 'LIBPATH', 'VCINSTALLDIR',
+            'VCToolsInstallDir', 'VSINSTALLDIR', 'WindowsSdkDir',
+            'WindowsSDKVersion', 'UniversalCRTSdkDir', 'UCRTVersion'
+          foreach ($variable in $variables) {
+            $value = [Environment]::GetEnvironmentVariable($variable, 'Process')
+            if ($null -ne $value) {
+              "$variable=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            }
+          }
+
+      # 03 の 5.2改: MSVC has no computed goto, so Windows wants the Clang
+      # beside it. CMakeLists finds it on the PATH and says so when it cannot;
+      # this makes sure there is one to find rather than let a release go out
+      # on the slower spelling by accident.
+      - name: Clang
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command clang-cl -ErrorAction SilentlyContinue)) {
+            choco install llvm --no-progress -y
+            "$env:ProgramFiles\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          }
+
+      - name: Ninja (apt)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      # Even --headless, the editor binary is linked against these.
+      - name: Godot's libraries (apt)
+        if: runner.os == 'Linux'
+        run: >
+          sudo apt-get install -y libxcursor1 libxinerama1 libxrandr2 libxi6
+          libgl1 libglx0 libegl1 libasound2t64 libpulse0 libudev1
+
+      - name: Ninja (brew)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      # godot-cpp generates two thousand files and compiles them before this
+      # tree compiles anything, once per runtime. That is most of the wall
+      # clock here and none of it changes between runs, so it is kept. The
+      # key carries the compiler's platform and the CMake that names the tag;
+      # bump `v1` to throw the lot away.
+      - name: godot-cpp
+        uses: actions/cache@v4
+        with:
+          path: |
+            lhat-gdextension/build/godot-cpp
+            lhat-gdextension/build/godot-cpp-*
+          key: v1-godot-cpp-${{ runner.os }}-${{ hashFiles('lhat-gdextension/CMakeLists.txt', 'lhat-gdextension/cmake/godot-cpp/CMakeLists.txt') }}
+
+      - name: Configure
+        shell: bash
+        # ${VAR:+"$VAR"} is "this argument, quoted, or no argument at all" --
+        # every target but macOS names no extra, and an empty string would be
+        # an argument of its own.
+        run: cmake --preset release ${EXTRA:+"$EXTRA"}
+        env:
+          EXTRA: ${{ matrix.extra }}
+
+      - name: Build
+        shell: bash
+        run: cmake --build --preset release
+
+      - name: Godot
+        shell: bash
+        run: |
+          url=https://github.com/godotengine/godot-builds/releases/download
+          curl -fsSL -o godot.zip "$url/$GODOT_VERSION/${{ matrix.godot }}"
+          mkdir -p build/godot && unzip -q godot.zip -d build/godot
+          case "${{ runner.os }}" in
+            Windows) found=$(find build/godot -name '*_console.exe' | head -1) ;;
+            macOS)   found=$(find build/godot -path '*Contents/MacOS/*' -type f | head -1) ;;
+            *)       found=$(find build/godot -type f -name 'Godot*' | head -1) ;;
+          esac
+          chmod +x "$found"
+          echo "GODOT=$PWD/$found" >> "$GITHUB_ENV"
+
+      - name: Smoke
+        shell: bash
+        run: scripts/smoke.sh "$GODOT"
+
+      # What the run said, for a failure that has to be read rather than
+      # guessed at.
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: smoke-logs-${{ runner.os }}
+          path: lhat-gdextension/build/smoke/*.log
+          if-no-files-found: ignore

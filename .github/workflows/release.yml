@@ -1,0 +1,177 @@
+# Builds the libraries a release consists of and attaches them to it.
+#
+# What goes out is one archive rather than one per platform: a GDExtension is
+# installed by dropping a folder into a project, and the folder the engine
+# reads names every platform's library in the one .gdextension. A user on a
+# Mac and a user on Windows install the same thing.
+#
+# The layout is addons/lhat/, which is where a Godot project keeps what it
+# was given, so the rows are rewritten to point there -- the tree's own copy
+# says res://bin because the demo projects keep the library at their root.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  # Buildable without a tag, to check the workflow itself. Nothing is
+  # published then: the release step is what a tag adds.
+  workflow_dispatch:
+
+permissions:
+  contents: write # gh release create, on the tag that started this
+
+env:
+  GODOT_VERSION: 4.7.1-stable
+
+jobs:
+  build:
+    name: ${{ matrix.slug }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: lhat-gdextension
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - slug: windows-x86_64
+            os: windows-latest
+            godot: Godot_v4.7.1-stable_win64.exe.zip
+          - slug: linux-x86_64
+            os: ubuntu-latest
+            godot: Godot_v4.7.1-stable_linux.x86_64.zip
+          - slug: macos-universal
+            os: macos-latest
+            godot: Godot_v4.7.1-stable_macos.universal.zip
+            extra: '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: lhat-gdextension
+
+      - uses: actions/checkout@v5
+        with:
+          repository: SAM-tak/lhat
+          path: lhat
+
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: lhat-gdextension
+        run: |
+          . ./scripts/devshell.ps1
+          $variables = 'PATH', 'INCLUDE', 'LIB', 'LIBPATH', 'VCINSTALLDIR',
+            'VCToolsInstallDir', 'VSINSTALLDIR', 'WindowsSdkDir',
+            'WindowsSDKVersion', 'UniversalCRTSdkDir', 'UCRTVersion'
+          foreach ($variable in $variables) {
+            $value = [Environment]::GetEnvironmentVariable($variable, 'Process')
+            if ($null -ne $value) {
+              "$variable=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            }
+          }
+
+      # A release must not go out on the switch spelling of the dispatch
+      # because a runner image happened not to carry Clang.
+      - name: Clang
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command clang-cl -ErrorAction SilentlyContinue)) {
+            choco install llvm --no-progress -y
+            "$env:ProgramFiles\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          }
+
+      - name: Ninja (apt)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Godot's libraries (apt)
+        if: runner.os == 'Linux'
+        run: >
+          sudo apt-get install -y libxcursor1 libxinerama1 libxrandr2 libxi6
+          libgl1 libglx0 libegl1 libasound2t64 libpulse0 libudev1
+
+      - name: Ninja (brew)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Configure
+        shell: bash
+        run: cmake --preset release ${EXTRA:+"$EXTRA"}
+        env:
+          EXTRA: ${{ matrix.extra }}
+
+      - name: Build
+        shell: bash
+        run: cmake --build --preset release
+
+      - name: Godot
+        shell: bash
+        run: |
+          url=https://github.com/godotengine/godot-builds/releases/download
+          curl -fsSL -o godot.zip "$url/$GODOT_VERSION/${{ matrix.godot }}"
+          mkdir -p build/godot && unzip -q godot.zip -d build/godot
+          case "${{ runner.os }}" in
+            Windows) found=$(find build/godot -name '*_console.exe' | head -1) ;;
+            macOS)   found=$(find build/godot -path '*Contents/MacOS/*' -type f | head -1) ;;
+            *)       found=$(find build/godot -type f -name 'Godot*' | head -1) ;;
+          esac
+          chmod +x "$found"
+          echo "GODOT=$PWD/$found" >> "$GITHUB_ENV"
+
+      # Only what runs goes out. A library that built and does not load is
+      # worse than no release.
+      - name: Smoke
+        shell: bash
+        run: scripts/smoke.sh "$GODOT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: libraries-${{ matrix.slug }}
+          path: lhat-gdextension/demo/bin/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: libraries
+          merge-multiple: true
+
+      - name: Assemble the addon
+        run: |
+          mkdir -p addons/lhat/bin
+          cp libraries/* addons/lhat/bin/
+          # The rows in the tree point at res://bin, where the demo projects
+          # keep the library. An addon lives one folder deeper.
+          sed 's|res://bin/|res://addons/lhat/bin/|' demo/lhat.gdextension \
+            > addons/lhat/lhat.gdextension
+          cp LICENSE addons/lhat/
+          ls -l addons/lhat addons/lhat/bin
+          name="lhat-gdextension-${GITHUB_REF_NAME:-dev}"
+          zip -qr "$name.zip" addons
+          echo "ARCHIVE=$name.zip" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: addon
+          path: ${{ env.ARCHIVE }}
+          if-no-files-found: error
+
+      # A tag is what makes this a release; workflow_dispatch only proves the
+      # build still works.
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$ARCHIVE" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" --generate-notes "$ARCHIVE"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
