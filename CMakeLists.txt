@@ -115,6 +115,23 @@ if(NOT EXISTS "${LHAT_CORE_DIR}/CMakeLists.txt")
         "LHAT_CORE_DIR at a checkout.")
 endif()
 
+# 03 の 6.2改: the profile-guided build, in the phases the core spells
+# (LHAT_PGO). GENERATE instruments, a training run through Godot writes the
+# raw profiles, and USE builds again against what llvm-profdata merged from
+# them; scripts/pgo.ps1 drives the three. Without it the code-layout lottery
+# is larger than what the dispatch is worth, so this is what makes the
+# computed goto readable at all.
+#
+# Two variables rather than one because the core's are cache variables of its
+# own, and a tree that set LHAT_PGO directly would carry it into the core
+# alone: add_compile_options there stops at that directory, and this tree's
+# sources would be left uninstrumented.
+set(LHAT_GD_PGO "OFF" CACHE STRING "PGO phase: OFF, GENERATE or USE")
+set(LHAT_GD_PGO_PROFILE "" CACHE FILEPATH
+    "The .profdata LHAT_GD_PGO=USE reads, as llvm-profdata merged it")
+set(LHAT_PGO "${LHAT_GD_PGO}" CACHE STRING "" FORCE)
+set(LHAT_PGO_PROFILE "${LHAT_GD_PGO_PROFILE}" CACHE FILEPATH "" FORCE)
+
 # 拡張が要るのはライブラリだけ。試験も CLI も言語サーバも stdlib も要らない
 # ——いまの godot-* プリセットが立てていたのと同じ組み合わせ。
 set(LHAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -297,6 +314,35 @@ if(MSVC)
     target_compile_options(lhat_gdextension PRIVATE /wd4200)
 else()
     target_compile_options(lhat_gdextension PRIVATE -Wno-pedantic)
+endif()
+
+# The other half of LHAT_GD_PGO above: the core has been told through its own
+# option, and this is what tells the sources here. Clang's instrumentation is
+# put in by the compile and read by the link, so both sides take the flag.
+if(NOT LHAT_GD_PGO STREQUAL "OFF")
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR
+            "LHAT_GD_PGO asks for Clang's instrumentation, and this tree is "
+            "${CMAKE_C_COMPILER_ID}.")
+    endif()
+    if(LHAT_GD_PGO STREQUAL "GENERATE")
+        set(pgo_flags -fprofile-generate)
+    elseif(LHAT_GD_PGO STREQUAL "USE")
+        if(NOT LHAT_GD_PGO_PROFILE)
+            message(FATAL_ERROR "LHAT_GD_PGO=USE needs LHAT_GD_PGO_PROFILE -- "
+                "the .profdata llvm-profdata merged from the training run.")
+        endif()
+        # A body the training never reached is left to the compiler rather
+        # than warned about: one runtime's profile is read by another, and
+        # what only the editor runs has nothing to say to a template.
+        set(pgo_flags -fprofile-use=${LHAT_GD_PGO_PROFILE}
+                      -Wno-profile-instr-unprofiled
+                      -Wno-profile-instr-out-of-date)
+    else()
+        message(FATAL_ERROR "LHAT_GD_PGO is OFF, GENERATE or USE")
+    endif()
+    target_compile_options(lhat_gdextension PRIVATE ${pgo_flags})
+    target_link_options(lhat_gdextension PRIVATE ${pgo_flags})
 endif()
 
 # The engine reads the platform, the Godot target and the architecture out of

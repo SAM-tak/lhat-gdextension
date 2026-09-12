@@ -1030,6 +1030,22 @@ Godot の `debug` / `release` はランタイムの別であって最適化の�
 や `cmake --build --preset template_release-vmonly-release`。
 `debug` と `fastdebug` は拡張そのもののバグを追うためのもので、配らない。
 
+### PGO で配る版を作る
+
+clang-cl の配布版はプロファイル誘導最適化（PGO）で作る。計測版を Godot で
+実行してから `llvm-profdata` で統合し、その結果を読んで最終版を再ビルドする。
+5ランタイムを一度に作るには、console 版の Godot を渡す:
+
+```powershell
+. .\scripts\devshell.ps1
+.\scripts\pgo.ps1 -Godot D:\path\of\Godot_console.exe
+```
+
+`-Targets editor` のように指定すれば1本だけ作れる。出力先は通常ビルドと同じ
+`demo/bin/`、中間のビルド木と `.profraw` / `.profdata` は `build/pgo-*` と
+`build/pgo/` に置く。学習は各 target ごとに作り直す。異なる target、前回の
+ソース、または計測なしの profile を使い回さない。
+
 出力は `demo/bin/` に直接落ちる:
 
 ```text
