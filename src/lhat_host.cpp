@@ -4,6 +4,8 @@
 
 #include <string.h>
 
+#include <mutex>
+
 #include <godot_cpp/classes/editor_interface.hpp>
 #include <godot_cpp/classes/editor_settings.hpp>
 #include <godot_cpp/classes/engine.hpp>
@@ -15,6 +17,15 @@ namespace godot {
 namespace host {
 
 namespace {
+
+// The one lock, and nothing else holds it. Function-local so that its
+// construction is settled before the first door opens, whichever door that
+// turns out to be.
+std::recursive_mutex &the_lock()
+{
+    static std::recursive_mutex it;
+    return it;
+}
 
 // The wrapper's mark. 0x89 begins no UTF-8 text, as the core's own magic has
 // it; the last byte tells the wrapper from a unit (^) and a table (S).
@@ -73,6 +84,28 @@ void host_print(LhatMachine *machine, void *context,
 }
 
 }  // namespace
+
+Alone::Alone()
+{
+    the_lock().lock();
+}
+
+Alone::~Alone()
+{
+    the_lock().unlock();
+}
+
+void take_hold(void *context)
+{
+    (void)context;
+    the_lock().lock();
+}
+
+void let_hold_go(void *context)
+{
+    (void)context;
+    the_lock().unlock();
+}
 
 String unit_path(const Units &units, const String &path)
 {
@@ -160,11 +193,18 @@ PackedByteArray unpacked(const PackedByteArray &stored, const String &where)
 
 LhatProgram *program_for(Units *units)
 {
+    // Every program registers through the one interned module, and the
+    // registration writes it (lhat_godot_module.cpp). So this is a door.
+    Alone alone;
+
     // 03 の 3.1: a file defaults to strict.
     LhatProgram *program = lhat_program_new(true, load_unit, units);
     if (program == nullptr) {
         return nullptr;
     }
+    // 05 の 8.11: what the core takes around a write of its own. Set before
+    // the registrations, as the header asks.
+    lhat_program_set_lock(program, take_hold, let_hold_go, nullptr);
 #if !LHAT_WITH_FRONTEND
     // 05 の 10.7: without the front end a signature is not read but looked
     // up, in the table an export in Compiled mode wrote from these same

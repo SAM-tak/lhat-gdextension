@@ -7,6 +7,7 @@
 #include <godot_cpp/core/class_db.hpp>
 
 #include "lhat.h"
+#include "lhat_host.h"
 #include "lhat_script.h"
 
 namespace godot {
@@ -56,6 +57,11 @@ Variant LhatScriptLoader::_load(const String &path, const String &original_path,
     (void)original_path;
     (void)use_sub_threads;
     (void)cache_mode;
+
+    // A threaded load hands this to a worker of the engine's pool, measured:
+    // ResourceLoader.load_threaded_request answers from one (lhat_host.h).
+    // The map below and the reload underneath are both the world's.
+    host::Alone alone;
 
     if (!FileAccess::file_exists(path)) {
         return ERR_FILE_NOT_FOUND;

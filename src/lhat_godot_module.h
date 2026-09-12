@@ -30,6 +30,7 @@
 #include <gdextension_interface.h>
 
 #include "lhat.h"
+#include "lhat_host.h"
 
 namespace godot {
 namespace host {

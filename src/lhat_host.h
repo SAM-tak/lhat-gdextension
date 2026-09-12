@@ -29,6 +29,43 @@
 namespace godot {
 namespace host {
 
+// 05 の 8.11, and what the engine's own threads do with one world.
+//
+// There is one program and one machine for the process (lhat_language.h), and
+// more than one thread arrives at them. The editor scans the project on a
+// thread of its own (EditorFileSystem::_thread_func) and asks every .lh what
+// class it declares, which checks and runs the unit; a threaded resource load
+// hands a .lh to a worker of the pool (measured); and the main thread is
+// meanwhile running @tool bodies and rebuilding after a save. Two of those at
+// once on one program is a unit asked for while it is being checked, which
+// the checker reports as a require^ cycle in a unit that requires nothing --
+// which is what it was doing.
+//
+// What register_godot leaves behind is shared further still: the module is
+// interned once for the process, and the class-to-tag table it fills is
+// written as values cross, on whatever thread crossed them. So one lock
+// covers the world and that too, and every door takes it.
+//
+// Recursive, because a body run under it reaches the engine and the engine
+// reaches back -- a bound method, a signal, a node wearing another script.
+//
+// The shape to keep in mind: this is held across a run, and a run calls the
+// engine. A thread that holds an engine lock and then wants this one, while
+// this one is held by a thread that wants that engine lock, is a deadlock --
+// the engine calls its resource loaders outside its own, which is what keeps
+// the one path that could shut on us open.
+struct Alone {
+    Alone();
+    ~Alone();
+    Alone(const Alone &) = delete;
+    Alone &operator=(const Alone &) = delete;
+};
+
+// The same pair as the language asks for (lhat_program_set_lock), so that a
+// write the core makes on its own is under the lock a door took.
+void take_hold(void *context);
+void let_hold_go(void *context);
+
 // 05 の 5.1 folds separators away and keeps nothing else, so "res://a/b.lh"
 // would come back from the language as "res:/a/b.lh" -- one slash, and no
 // longer a path the engine will open. The scheme is therefore taken off

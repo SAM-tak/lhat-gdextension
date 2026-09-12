@@ -959,6 +959,9 @@ const LhatHostDataTag *tag_for(const Godot *module, Object *object)
     if (object == nullptr) {
         return module->object_tag;
     }
+    // The answer is written back into a table every program shares, and a
+    // value crosses on whatever thread had it (lhat_host.h).
+    Alone alone;
     StringName named = object->get_class();
     for (StringName walk = named; !walk.is_empty();
          walk = ClassDBSingleton::get_singleton()->get_parent_class(walk)) {

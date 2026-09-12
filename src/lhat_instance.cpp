@@ -141,6 +141,9 @@ GDExtensionBool instance_set(GDExtensionScriptInstanceDataPtr data,
                              GDExtensionConstStringNamePtr name,
                              GDExtensionConstVariantPtr value)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     Instance *it = of(data);
     if (!living(it)) {
         return false;
@@ -179,6 +182,9 @@ GDExtensionBool instance_get(GDExtensionScriptInstanceDataPtr data,
                              GDExtensionConstStringNamePtr name,
                              GDExtensionVariantPtr answer)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     Instance *it = of(data);
     if (!living(it)) {
         return false;
@@ -489,6 +495,9 @@ bool exported_as(const LhatScript *script, const String &field,
 const GDExtensionPropertyInfo *instance_property_list(
     GDExtensionScriptInstanceDataPtr data, uint32_t *count)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     Instance *it = of(data);
     *count = 0;
     if (!living(it)) {
@@ -611,6 +620,9 @@ void instance_property_state(GDExtensionScriptInstanceDataPtr data,
                              GDExtensionScriptInstancePropertyStateAdd add,
                              void *userdata)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     (void)data;
     (void)add;
     (void)userdata;
@@ -779,6 +791,9 @@ void dress_node_fields(Instance *it)
 
 void drive_await(Instance *it, int64_t id)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     LhatMachine *machine = it->script->lhat_machine();
     LhatValue coroutine = it->script->parked_coroutine(id);
     if (machine == nullptr || lhat_is_nil(coroutine)) {
@@ -831,6 +846,9 @@ void instance_call(GDExtensionScriptInstanceDataPtr data,
                    GDExtensionInt count, GDExtensionVariantPtr answer,
                    GDExtensionCallError *error)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     Instance *it = of(data);
     *reinterpret_cast<Variant *>(answer) = Variant();
 
@@ -952,6 +970,9 @@ void instance_call(GDExtensionScriptInstanceDataPtr data,
 void instance_notification(GDExtensionScriptInstanceDataPtr data, int32_t what,
                            GDExtensionBool reversed)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     (void)data;
     (void)what;
     (void)reversed;
@@ -960,6 +981,9 @@ void instance_notification(GDExtensionScriptInstanceDataPtr data, int32_t what,
 void instance_to_string(GDExtensionScriptInstanceDataPtr data,
                         GDExtensionBool *is_valid, GDExtensionStringPtr out)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     Instance *it = of(data);
     *reinterpret_cast<String *>(out) =
         String("[L^ ") + it->script->get_path() + String("]");
@@ -1007,6 +1031,9 @@ GDExtensionBool instance_is_placeholder(GDExtensionScriptInstanceDataPtr data)
 
 void instance_free(GDExtensionScriptInstanceDataPtr data)
 {
+    // One world, and the engine reaches it from more than one
+    // thread (lhat_host.h).
+    host::Alone alone;
     Instance *it = of(data);
     // Only from the table this instance was actually rooted in. The ids start
     // again with each machine, so unrooting after a reload would take out

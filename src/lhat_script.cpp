@@ -582,6 +582,9 @@ Error LhatScript::reload_now(bool keep_state)
     // self^ of a body the program has let go of; this is what tells them.
     generation++;
 
+    // Checking, compiling and running, all on the one world (lhat_host.h).
+    host::Alone alone;
+
     LhatLanguage *language = LhatLanguage::get_singleton();
     LhatProgram *program =
         language != nullptr ? language->world_program() : nullptr;
@@ -877,6 +880,7 @@ bool LhatScript::run_body()
 // and takes nothing, so the call is tried both ways.
 bool LhatScript::make_instance(Object *owner, LhatValue *out, int64_t *id)
 {
+    host::Alone alone;
     LhatMachine *machine = lhat_machine();
     if (!runnable || machine == nullptr) {
         return false;

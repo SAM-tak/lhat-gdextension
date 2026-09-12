@@ -189,6 +189,10 @@ PackedStringArray LhatLanguage::_get_recognized_extensions() const
 // script's require^ reached -- one table, one definition, one set of types.
 LhatProgram *LhatLanguage::world_program()
 {
+    // Made on the first ask, and the first ask is not always the main
+    // thread's: the editor's scan asks every .lh what class it declares
+    // (lhat_host.h).
+    host::Alone alone;
     if (program != nullptr) {
         return program;
     }
@@ -893,6 +897,11 @@ bool LhatLanguage::_handles_global_class_type(const String &type) const
 // is what GDScript's own scan costs too, a parse per file.
 Dictionary LhatLanguage::_get_global_class_name(const String &path) const
 {
+    // The editor asks this of every .lh from its own scanning thread
+    // (EditorFileSystem::_thread_func), and what follows checks and runs the
+    // unit on the world (lhat_host.h).
+    host::Alone alone;
+
     Dictionary out;
     Ref<FileAccess> reading = FileAccess::open(path, FileAccess::READ);
     if (reading.is_null()) {
