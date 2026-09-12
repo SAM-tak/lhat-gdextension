@@ -41,6 +41,44 @@ endif()
 
 project(lhat_gdextension C CXX)
 
+set(LHAT_GODOT_CPP_DIR
+    "${CMAKE_SOURCE_DIR}/build/godot-cpp"
+    CACHE PATH
+    "Where godot-cpp lives. Fetched there unless it is a checkout already."
+)
+set(LHAT_GODOT_CPP_TAG
+    "godot-4.5-stable"
+    CACHE STRING
+    "godot-cpp tag to fetch. Matches the Godot version the extension loads in."
+)
+
+# Fetching is only ever how the directory comes to exist; what is built is
+# always the checkout that is there. FetchContent would put the two cases in
+# different binary directories, and moving between them rebuilds two thousand
+# generated files for no reason.
+#
+# Before the driver below rather than beside the build that wants it: the five
+# sub-trees are configured side by side and this is the one directory all of
+# them want, so a clone left to whichever got there first is five clones into
+# one path -- four of them into a directory the first had already made, which
+# git refuses. A tree that is not the driver runs this for itself and finds it
+# there or fetches it, as before.
+if(NOT EXISTS "${LHAT_GODOT_CPP_DIR}/CMakeLists.txt")
+    message(STATUS "godot-cpp: fetching ${LHAT_GODOT_CPP_TAG} into ${LHAT_GODOT_CPP_DIR}")
+    find_package(Git REQUIRED)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} clone --depth 1 --branch ${LHAT_GODOT_CPP_TAG}
+                https://github.com/godotengine/godot-cpp.git
+                "${LHAT_GODOT_CPP_DIR}"
+        RESULT_VARIABLE fetched
+    )
+    if(NOT fetched EQUAL 0)
+        message(FATAL_ERROR
+            "could not fetch godot-cpp ${LHAT_GODOT_CPP_TAG}. Point "
+            "LHAT_GODOT_CPP_DIR at a checkout, or clone one there yourself.")
+    endif()
+endif()
+
 # ---- All three runtimes at once --------------------------------------------
 # Godot loads a different library for each of three runtimes -- the editor, a
 # debug export, a release export -- and which one a tree builds is
@@ -185,36 +223,6 @@ else()
 endif()
 add_subdirectory("${LHAT_CORE_DIR}" lhat-core)
 
-set(LHAT_GODOT_CPP_DIR
-    "${CMAKE_SOURCE_DIR}/build/godot-cpp"
-    CACHE PATH
-    "Where godot-cpp lives. Fetched there unless it is a checkout already."
-)
-set(LHAT_GODOT_CPP_TAG
-    "godot-4.5-stable"
-    CACHE STRING
-    "godot-cpp tag to fetch. Matches the Godot version the extension loads in."
-)
-
-# Fetching is only ever how the directory comes to exist; what is built is
-# always the checkout that is there. FetchContent would put the two cases in
-# different binary directories, and moving between them rebuilds two thousand
-# generated files for no reason.
-if(NOT EXISTS "${LHAT_GODOT_CPP_DIR}/CMakeLists.txt")
-    message(STATUS "godot-cpp: fetching ${LHAT_GODOT_CPP_TAG} into ${LHAT_GODOT_CPP_DIR}")
-    find_package(Git REQUIRED)
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} clone --depth 1 --branch ${LHAT_GODOT_CPP_TAG}
-                https://github.com/godotengine/godot-cpp.git
-                "${LHAT_GODOT_CPP_DIR}"
-        RESULT_VARIABLE fetched
-    )
-    if(NOT fetched EQUAL 0)
-        message(FATAL_ERROR
-            "could not fetch godot-cpp ${LHAT_GODOT_CPP_TAG}. Point "
-            "LHAT_GODOT_CPP_DIR at a checkout, or clone one there yourself.")
-    endif()
-endif()
 
 # An existing checkout is used as it stands -- that is what pointing
 # LHAT_GODOT_CPP_DIR somewhere else is for, and the version there is the
