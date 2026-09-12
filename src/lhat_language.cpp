@@ -1046,10 +1046,11 @@ int kind_of(LhatCompletionKind kind)
 // What the list shows against what it inserts. A type is worth reading and
 // not worth typing, so it is shown and not inserted -- which is the shape
 // GDScript draws a member in as well.
-void offer_items(Array &options, const LhatCompletionItem *items, size_t count)
+void offer_items(Array &options, const LhatCompletionItem *items, size_t count,
+                 const String &begun = String())
 {
     for (size_t i = 0; i < count; i++) {
-        String label = String::utf8(items[i].label);
+        String label = begun + String::utf8(items[i].label);
         String detail = String::utf8(items[i].detail);
         String display = detail.is_empty() ? label : label + " : " + detail;
         bool word = items[i].kind == LHAT_COMPLETION_WORD_OF_LANGUAGE;
@@ -1123,17 +1124,6 @@ void offer_units(Array &options, const String &path, const String &typed)
     }
 }
 
-// The one module this host registers under. What stands beneath it are the
-// singletons, and the only list of those is the generated table, which
-// nothing here can walk -- so the root is offered and the rest is typed,
-// until there is a list to read.
-void offer_modules(Array &options, const String &typed)
-{
-    if (typed.is_empty() || String("godot").begins_with(typed)) {
-        options.push_back(offered(KIND_CLASS, "godot", "godot", WHERE_OTHER));
-    }
-}
-
 }  // namespace
 #endif  // LHAT_WITH_FRONTEND
 
@@ -1171,7 +1161,37 @@ Dictionary LhatLanguage::_complete_code(const String &code, const String &path,
                                 (int)(offset - from));
 
     if (ask == LHAT_COMPLETION_MODULE) {
-        offer_modules(options, typed);
+        // A program knows what was registered on it, so the list is the
+        // core's rather than a copy this side keeps beside the generated
+        // table -- and it answers one segment at a time, which is what the
+        // editor filters on.
+        CharString prefix = typed.utf8();
+        LhatProgram *program = buffer_program();
+        if (program == nullptr) {
+            buffer_checked(path, text);
+            program = buffer_program();
+        }
+        if (program != nullptr) {
+            LocalVector<LhatCompletionItem> items;
+            items.resize(128);
+            size_t count = lhat_program_completion_modules(
+                program, prefix.get_data(), (size_t)prefix.length(),
+                items.ptr(), items.size());
+            if (count > items.size()) {
+                items.resize(count);
+                lhat_program_completion_modules(program, prefix.get_data(),
+                                                (size_t)prefix.length(),
+                                                items.ptr(), count);
+            }
+            // What comes back is what follows the prefix, and the editor
+            // matches against the whole word it reads back from the caret
+            // -- which begins after the last dot, not where the core was
+            // told to start. So the part of the segment already typed goes
+            // back on the front.
+            int64_t dot = typed.rfind(".");
+            offer_items(options, items.ptr(), count,
+                        dot < 0 ? typed : typed.substr(dot + 1));
+        }
     } else if (ask == LHAT_COMPLETION_UNIT) {
         offer_units(options, path, typed);
     } else {
