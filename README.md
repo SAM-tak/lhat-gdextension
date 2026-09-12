@@ -985,14 +985,15 @@ cmake --preset release      # 初回は godot-cpp を取得する
 cmake --build --preset release
 ```
 
-**コンパイラは clang-cl**（Visual Studio 同梱の `VC\Tools\Llvm\x64\bin`。
-`devshell.ps1` を読み込めば PATH に載る）。プリセットが指定しているので
-コマンドは変わらない。理由は 03 の 5.2改——**命令ディスパッチが計算 goto に
-なるのは `__clang__` / `__GNUC__` のときだけ**で、MSVC にはその拡張が無く
-switch を読む。dodge の bench で実測（200,000回、9標本の最小）:
+**Windows では clang-cl を使う**（Visual Studio 同梱の `VC\Tools\Llvm\x64\bin`。
+`devshell.ps1` を読み込めば PATH に載る）。`CMakeLists.txt` が `project()` の
+前に選ぶので、コマンドは変わらない。理由は 03 の 5.2改——**命令ディスパッチが
+計算 goto になるのは `__clang__` / `__GNUC__` のときだけ**で、MSVC にはその
+拡張が無く switch を読む。Linux と macOS は既定のコンパイラが元からどちらかを
+名乗るので、何も指定しない。dodge の bench で実測（200,000回、9標本の最小）:
 
 | | MSVC | clang-cl |
-|---|---|---|
+| --- | --- | --- |
 | L^ のループ（ディスパッチが決める） | 9,848µs | **5,796µs** |
 | L^ のメソッド呼び | 25,872µs | 22,490µs |
 | 束縛したエンジン呼び | 113,949µs | 101,277µs |
@@ -1007,7 +1008,7 @@ template の2つには、コアの前段（字句・構文・検査・コンパ�
 **VM だけ**の版がもう1本ずつある（`LHAT_VM_ONLY`。下の「書き出し」）:
 
 | preset | `GODOTCPP_TARGET` | 読むのは | Unity で言えば |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `editor` | `editor` | エディタ（と、そこから起動したゲーム） | development |
 | `template_debug` | `template_debug` | debug 書き出し、Text のゲーム | development |
 | `template_debug-vmonly` | `template_debug` | debug 書き出し、Compiled のゲーム | development |
@@ -1085,7 +1086,7 @@ Compiled）。GDScript の「スクリプト」欄と同じ位置づけだが、
 組み込みで、こちらは `EditorExportPlugin`（`src/lhat_export.cpp`）が足している。
 
 | | `.pck` の `.lh` | 配られる dll | ゲームが読む dll |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Compiled**（既定） | コンパイル済みバイト列 ＋ 署名表 `.lhat.sig`（どちらも zstd） | VM だけの1本 | VM だけ |
 | **Text** | テキストのまま | VM だけ ＋ 前段入り | 前段入り（`lhat_text`） |
 

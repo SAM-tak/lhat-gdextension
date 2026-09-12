@@ -15,6 +15,30 @@
 #     demo project's bin/, where demo/lhat.gdextension already points.
 cmake_minimum_required(VERSION 3.25)
 
+# 03 の 5.2改: the core's dispatch takes the jump table where the compiler can
+# take a label's address -- __clang__ or __GNUC__ -- and reads the switch
+# otherwise. Everywhere but Windows the compiler that is found is already one
+# of the two; here it is cl.exe, which has no such extension, and Visual
+# Studio ships an LLVM beside it (VC\Tools\Llvm\x64\bin, on the PATH
+# scripts/devshell.ps1 exports).
+#
+# Before project(), which is where a compiler is settled, and only when none
+# was named: -DCMAKE_C_COMPILER=cl builds with MSVC as it always did. A
+# Windows without that component builds too, on the slower spelling, and is
+# told so rather than refused.
+if(CMAKE_HOST_WIN32 AND NOT CMAKE_C_COMPILER AND NOT CMAKE_CXX_COMPILER)
+    find_program(LHAT_CLANG_CL clang-cl)
+    if(LHAT_CLANG_CL)
+        set(CMAKE_C_COMPILER "${LHAT_CLANG_CL}" CACHE FILEPATH "")
+        set(CMAKE_CXX_COMPILER "${LHAT_CLANG_CL}" CACHE FILEPATH "")
+    else()
+        message(WARNING
+            "no clang-cl on the PATH -- building with whatever is found, and "
+            "the interpreter loop will read the switch rather than the jump "
+            "table. Install Visual Studio's C++ Clang tools for Windows.")
+    endif()
+endif()
+
 project(lhat_gdextension C CXX)
 
 # ---- All three runtimes at once --------------------------------------------
