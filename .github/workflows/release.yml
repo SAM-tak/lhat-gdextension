@@ -44,7 +44,6 @@ jobs:
           - slug: macos-universal
             os: macos-latest
             godot: Godot_v4.7.1-stable_macos.universal.zip
-            extra: '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
     steps:
       - uses: actions/checkout@v5
         with:
@@ -98,9 +97,7 @@ jobs:
 
       - name: Configure
         shell: bash
-        run: cmake --preset release ${EXTRA:+"$EXTRA"}
-        env:
-          EXTRA: ${{ matrix.extra }}
+        run: cmake --preset release
 
       - name: Build
         shell: bash

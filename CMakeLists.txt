@@ -39,6 +39,20 @@ if(CMAKE_HOST_WIN32 AND NOT CMAKE_C_COMPILER AND NOT CMAKE_CXX_COMPILER)
     endif()
 endif()
 
+# Both Apple architectures out of one build, and the engine's `universal` tag
+# is true for either (core/os/os.cpp), which is why demo/lhat.gdextension has
+# one macOS row rather than two -- and why a build that answered to only one
+# of them would name a library no row asks for.
+#
+# Here rather than in the workflow that releases: the five trees this one
+# drives, and every per-runtime preset, run this same file and reach the same
+# answer. Passing it in reached the driver alone, and the libraries came out
+# named for the architecture of whatever machine built them.
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND NOT CMAKE_OSX_ARCHITECTURES)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING
+        "The Apple architectures one build answers to.")
+endif()
+
 project(lhat_gdextension C CXX)
 
 set(LHAT_GODOT_CPP_DIR
@@ -237,8 +251,12 @@ add_subdirectory("${LHAT_CORE_DIR}" lhat-core)
 # whatever the other one left there. As with the checkout, building it is only
 # ever how the export comes to exist -- a godot-cpp that changed underneath is
 # rebuilt by removing its tree.
+set(LHAT_GODOT_CPP_ARCHES "")
+if(CMAKE_OSX_ARCHITECTURES)
+    string(REPLACE ";" "-" LHAT_GODOT_CPP_ARCHES "-${CMAKE_OSX_ARCHITECTURES}")
+endif()
 set(LHAT_GODOT_CPP_BUILD_DIR
-    "${CMAKE_SOURCE_DIR}/build/godot-cpp-${GODOTCPP_TARGET}-${CMAKE_CXX_COMPILER_ID}"
+    "${CMAKE_SOURCE_DIR}/build/godot-cpp-${GODOTCPP_TARGET}-${CMAKE_CXX_COMPILER_ID}${LHAT_GODOT_CPP_ARCHES}"
     CACHE PATH "Where godot-cpp for this runtime is built, once.")
 # What says the tree is there is the library it left, not the two .cmake
 # files beside it: those are written when it is configured, so a build that
@@ -257,6 +275,9 @@ if(NOT LHAT_GODOT_CPP_BUILT)
                 -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                 -DGODOTCPP_TARGET=${GODOTCPP_TARGET}
                 -DLHAT_GODOT_CPP_DIR=${LHAT_GODOT_CPP_DIR}
+                # Quoted: the ';' between two architectures is the list
+                # separator, and unquoted it would be two arguments.
+                "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
         RESULT_VARIABLE configured
     )
     if(configured EQUAL 0)

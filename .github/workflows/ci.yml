@@ -45,14 +45,6 @@ jobs:
           - name: macos / apple clang, universal
             os: macos-latest
             godot: Godot_v4.7.1-stable_macos.universal.zip
-            # One build answers both Apple architectures, and the engine's
-            # `universal` tag is true for either -- which is why the
-            # .gdextension has one macOS row rather than two.
-            #
-            # Passed through the environment rather than interpolated: the
-            # ';' that separates a CMake list is also the shell's command
-            # separator, and unquoted it runs "x86_64" as a command.
-            extra: '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
     steps:
       - uses: actions/checkout@v5
         with:
@@ -124,12 +116,10 @@ jobs:
 
       - name: Configure
         shell: bash
-        # ${VAR:+"$VAR"} is "this argument, quoted, or no argument at all" --
-        # every target but macOS names no extra, and an empty string would be
-        # an argument of its own.
-        run: cmake --preset release ${EXTRA:+"$EXTRA"}
-        env:
-          EXTRA: ${{ matrix.extra }}
+        # macOS wants both Apple architectures out of one build, and
+        # CMakeLists asks for that itself: the five trees this drives run the
+        # same file, and an argument here would reach the driver alone.
+        run: cmake --preset release
 
       - name: Build
         shell: bash
