@@ -107,7 +107,7 @@ jobs:
       # key carries the compiler's platform and the CMake that names the tag;
       # bump `v1` to throw the lot away.
       - name: godot-cpp
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             lhat-gdextension/build/godot-cpp
