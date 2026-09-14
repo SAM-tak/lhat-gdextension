@@ -7,7 +7,11 @@
 # and that is the half of this that finds things.
 #
 # The core is a sibling checkout here as it is on a desk (LHAT_CORE_DIR
-# defaults to ../lhat), so both repositories are checked out side by side.
+# defaults to ../lhat), so both repositories are checked out side by side --
+# the core at the commit .github/lhat-ref names, not wherever its default
+# branch is today. A run then says which core it built, and a red one is this
+# tree's doing or that file's, never a core commit nobody here asked for.
+# Moving to a newer core is a commit that changes the file.
 name: ci
 
 on:
@@ -50,9 +54,15 @@ jobs:
         with:
           path: lhat-gdextension
 
+      - name: Core ref
+        id: core
+        shell: bash
+        run: echo "ref=$(tr -d '[:space:]' < .github/lhat-ref)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v5
         with:
           repository: SAM-tak/lhat
+          ref: ${{ steps.core.outputs.ref }}
           path: lhat
 
       # What scripts/devshell.ps1 does locally: the Ninja presets invoke the

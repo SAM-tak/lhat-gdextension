@@ -49,9 +49,17 @@ jobs:
         with:
           path: lhat-gdextension
 
+      # The core the tag's own tree names, so a release is rebuildable from
+      # its tag alone.
+      - name: Core ref
+        id: core
+        shell: bash
+        run: echo "ref=$(tr -d '[:space:]' < .github/lhat-ref)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v5
         with:
           repository: SAM-tak/lhat
+          ref: ${{ steps.core.outputs.ref }}
           path: lhat
 
       - name: MSVC environment
