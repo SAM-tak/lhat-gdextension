@@ -248,17 +248,39 @@ LhatProgram *program_for(Units *units)
     return program;
 }
 
+namespace {
+
+// snprintf's contract, which every writer the core offers follows: it answers
+// how long the whole text is, not counting the NUL, and fills what room it
+// was given. The answer nearly always fits the stack, so that is where it is
+// asked; a longer one is asked for again into a buffer that holds it, and
+// where there is no room for even that the truncated text goes out rather
+// than silence.
+template <typename Write>
+String written(Write write)
+{
+    char room[1024];
+    size_t needed = write(room, sizeof room);
+    if (needed < sizeof room) {
+        return String::utf8(room, (int)needed);
+    }
+    char *bigger = (char *)lhat_alloc(needed + 1);
+    if (bigger == nullptr) {
+        return String::utf8(room);
+    }
+    write(bigger, needed + 1);
+    String out = String::utf8(bigger, (int)needed);
+    lhat_free(bigger);
+    return out;
+}
+
+}  // namespace
+
 String text_of(LhatValue value)
 {
-    size_t needed = lhat_value_text(value, nullptr, 0);
-    char *text = (char *)lhat_alloc(needed + 1);
-    if (text == nullptr) {
-        return String();
-    }
-    lhat_value_text(value, text, needed + 1);
-    String out = String::utf8(text, (int)needed);
-    lhat_free(text);
-    return out;
+    return written([&](char *out, size_t room) {
+        return lhat_value_text(value, out, room);
+    });
 }
 
 String problem(const String &where, const String &what)
@@ -357,13 +379,9 @@ String run_problem(LhatMachine *machine, const String &where,
         text = String("line ") + String::num_int64(ran.line) + ": " + text;
     }
     if (machine != nullptr && lhat_machine_fault_depth(machine) >= 2) {
-        size_t needed = lhat_machine_traceback(machine, nullptr, 0);
-        char *spelt = (char *)lhat_alloc(needed + 1);
-        if (spelt != nullptr) {
-            lhat_machine_traceback(machine, spelt, needed + 1);
-            text += String("\n") + String::utf8(spelt, (int)needed);
-            lhat_free(spelt);
-        }
+        text += String("\n") + written([&](char *out, size_t room) {
+            return lhat_machine_traceback(machine, out, room);
+        });
     }
     fault_said() = problem(where, text);
     return fault_said();
@@ -407,21 +425,9 @@ void diagnostics_into(const LhatProgram *program, PackedStringArray &said)
         for (size_t i = 0; i < count; i++) {
             // One line each: the Output panel and an Array both read better
             // for it than for the form that quotes the source.
-            char room[1024];
-            size_t needed =
-                lhat_unit_diagnostic_write(unit, i, false, room, sizeof room);
-            if (needed < sizeof room) {
-                said.push_back(String::utf8(room, (int)needed));
-                continue;
-            }
-            char *bigger = (char *)lhat_alloc(needed + 1);
-            if (bigger == nullptr) {
-                said.push_back(String::utf8(room));  // truncated, not silence
-                continue;
-            }
-            lhat_unit_diagnostic_write(unit, i, false, bigger, needed + 1);
-            said.push_back(String::utf8(bigger, (int)needed));
-            lhat_free(bigger);
+            said.push_back(written([&](char *out, size_t room) {
+                return lhat_unit_diagnostic_write(unit, i, false, out, room);
+            }));
         }
     }
 }
@@ -455,28 +461,14 @@ TypedArray<Dictionary> diagnostics_as_errors(const LhatProgram *program,
         for (size_t i = 0; i < count; i++) {
             LhatUnitDiagnostic d = lhat_unit_diagnostic(unit, i);
 
-            char room[512];
-            char *message = room;
-            size_t needed =
-                lhat_unit_diagnostic_message(unit, i, room, sizeof room);
-            if (needed >= sizeof room) {
-                char *bigger = (char *)lhat_alloc(needed + 1);
-                if (bigger != nullptr) {
-                    lhat_unit_diagnostic_message(unit, i, bigger, needed + 1);
-                    message = bigger;
-                }
-            }
-
             Dictionary error;
             error["path"] = path.ends_with(where) ? path : where;
             error["line"] = (int64_t)d.line;
             error["column"] = (int64_t)d.column;
-            error["message"] = String::utf8(message);
+            error["message"] = written([&](char *out, size_t room) {
+                return lhat_unit_diagnostic_message(unit, i, out, room);
+            });
             errors.push_back(error);
-
-            if (message != room) {
-                lhat_free(message);
-            }
         }
     }
     return errors;
@@ -488,10 +480,12 @@ String compile_failure(const LhatProgram *program, const String &path)
     LhatCompileResult failure = lhat_program_compile_failure(program, &where);
 
     String name = where != nullptr ? String::utf8(where) : path;
-    String text = String::utf8(lhat_compile_status_message(failure.status));
-    if (failure.name != nullptr) {
-        text += ": " + String::utf8(failure.name, (int)failure.name_length);
-    }
+    // The core says which name a status is about, in the program's language
+    // and in the place its own sentence puts it -- "no such name: nowhere"
+    // here, somewhere else in another language.
+    String text = written([&](char *out, size_t room) {
+        return lhat_compile_message_write(program, &failure, out, room);
+    });
     if (failure.line == 0) {
         return problem(name, text);
     }
