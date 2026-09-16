@@ -674,16 +674,24 @@ Error LhatScript::reload_now(bool keep_state)
     }
 
     // 05 の 8.6: the instances go where the collector reaches them. Under
-    // L^.modules rather than in L^ itself, so nothing a script writes can
-    // name it by accident. One table per script, filed under its own path:
-    // the machine is the world's now, so a single name would have the last
-    // script to load take the root away from every other one.
+    // L^.modules rather than in L^ itself, and under a name no identifier
+    // spells, so nothing a script writes can name it by accident. One table
+    // per script, filed under its own path: the machine is the world's now,
+    // so a single name would have the last script to load take the root away
+    // from every other one.
+    //
+    // Not under `godot`. That module is the program's (05 の 8.7改5), built
+    // once on a heap whose objects are born black so that no machine ever
+    // walks into them -- and a table this machine hangs inside one is
+    // reached by nothing, so the collector takes it, the instances with it,
+    // and leaves the program's table pointing at freed keys. Nothing refuses
+    // the write; it only fails a cycle or two later, somewhere else.
     CharString under = get_path().utf8();
     if (!lhat_machine_make_table(machine, &instances) ||
-        !lhat_machine_register(machine, "godot.script", "instances",
+        !lhat_machine_register(machine, "godot-script", "instances",
                                under.get_data(), instances) ||
         !lhat_machine_make_table(machine, &awaiting) ||
-        !lhat_machine_register(machine, "godot.script", "awaiting",
+        !lhat_machine_register(machine, "godot-script", "awaiting",
                                under.get_data(), awaiting)) {
         UtilityFunctions::push_error(
             host::problem(get_path(), "out of memory"));
