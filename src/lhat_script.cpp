@@ -315,11 +315,31 @@ LhatScript::~LhatScript()
     let_go();
 }
 
+// 05 の 8.12: the machine's host root, which L^ has no name for, used as a
+// set. Each table is its own key, so no two scripts can file over each
+// other and nothing has to be spelt; nil^ takes one out again.
+static bool rooted(LhatMachine *machine, LhatValue table, bool keep)
+{
+    bool refused = false;
+    return lhat_machine_table_set(machine, lhat_machine_host_root(machine),
+                                  table, keep ? lhat_bool(true) : lhat_nil(),
+                                  &refused) &&
+           !refused;
+}
+
 // What this .lh read off the world, given up. The world itself is the
 // language's and outlives this -- what is dropped here is only the part that
 // named a unit of it, which a rebuild has made stale.
 void LhatScript::let_go()
 {
+    // Out of the root, or a reload would leave every instance and parked
+    // coroutine of the last run alive beside the new ones. No machine means
+    // the world has gone, and they with it.
+    if (LhatMachine *machine = lhat_machine()) {
+        host::Alone alone;
+        rooted(machine, instances, false);
+        rooted(machine, awaiting, false);
+    }
     klass = lhat_nil();
     instances = lhat_nil();
     awaiting = lhat_nil();
@@ -673,26 +693,12 @@ Error LhatScript::reload_now(bool keep_state)
         return OK;
     }
 
-    // 05 の 8.6: the instances go where the collector reaches them. Under
-    // L^.modules rather than in L^ itself, and under a name no identifier
-    // spells, so nothing a script writes can name it by accident. One table
-    // per script, filed under its own path: the machine is the world's now,
-    // so a single name would have the last script to load take the root away
-    // from every other one.
-    //
-    // Not under `godot`. That module is the program's (05 の 8.7改5), built
-    // once on a heap whose objects are born black so that no machine ever
-    // walks into them -- and a table this machine hangs inside one is
-    // reached by nothing, so the collector takes it, the instances with it,
-    // and leaves the program's table pointing at freed keys. Nothing refuses
-    // the write; it only fails a cycle or two later, somewhere else.
-    CharString under = get_path().utf8();
+    // 05 の 8.6: the instances go where the collector reaches them -- the
+    // host root, where nothing a script writes can reach them either.
     if (!lhat_machine_make_table(machine, &instances) ||
-        !lhat_machine_register(machine, "godot-script", "instances",
-                               under.get_data(), instances) ||
+        !rooted(machine, instances, true) ||
         !lhat_machine_make_table(machine, &awaiting) ||
-        !lhat_machine_register(machine, "godot-script", "awaiting",
-                               under.get_data(), awaiting)) {
+        !rooted(machine, awaiting, true)) {
         UtilityFunctions::push_error(
             host::problem(get_path(), "out of memory"));
         instances = lhat_nil();

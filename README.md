@@ -221,8 +221,8 @@ _process = p^self^, delta:number^ {
 2つのノードは別々に数える。`.lh` 1枚につき `LhatProgram` と `LhatMachine`
 が1組、ノード1つにつきインスタンス1つ。ノードごとに機械を持つ形ではない。
 
-インスタンスは `L^.modules.godot.script.instances` の下に置かれる。
-これも根のため。ノードが消えるとそこから外れる。
+インスタンスは機械のホスト根（`lhat_machine_host_root`）に置かれる。
+これも根のため。L^ からは名前で辿れない。ノードが消えるとそこから外れる。
 
 #### 定義のものは定義から読む
 

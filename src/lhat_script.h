@@ -13,8 +13,8 @@
 // declares" a thing to find without a naming convention.
 //
 // One program and one machine per script, shared by every node wearing it.
-// The instances live in a table under L^.modules, so they are rooted for the
-// same reason the definition is.
+// The instances live in a table in the machine's host root, so they are
+// rooted as the definition is, where no script can name them.
 
 #ifndef LHAT_GODOT_SCRIPT_H
 #define LHAT_GODOT_SCRIPT_H
@@ -51,9 +51,9 @@ class LhatScript : public ScriptExtension {
     // scripts can hand each other a value. What is left here is what this
     // one .lh is: its unit of that program, and what was read off it.
 
-    // The one public^ def^, and the table the instances are rooted in. Both
-    // reachable from L^, so neither is held here for the collector's sake --
-    // only for the host's.
+    // The one public^ def^, and the table the instances are rooted in. The
+    // first reachable from L^.modules, the second from the host root, so
+    // neither is held here for the collector's sake -- only for the host's.
     LhatValue klass = lhat_nil();
     LhatValue instances = lhat_nil();
     // 02 の 15.5: a body that wrote yield^ answers a coroutine rather than
