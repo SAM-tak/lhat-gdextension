@@ -50,6 +50,11 @@ HashMap<String, Ref<LhatScript>> &standing()
 
 }  // namespace
 
+void forget_scripts()
+{
+    standing().clear();
+}
+
 Variant LhatScriptLoader::_load(const String &path, const String &original_path,
                                 bool use_sub_threads,
                                 int32_t cache_mode) const

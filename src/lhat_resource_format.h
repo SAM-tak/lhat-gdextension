@@ -44,6 +44,11 @@ public:
         const Ref<Resource> &resource) const override;
 };
 
+// The loader holds one script per path for as long as the process runs (05 の
+// 5.3, as GDScript's own cache does). This gives them back, and the language
+// calls it where GDScript calls GDScriptCache::clear -- on the way out.
+void forget_scripts();
+
 }  // namespace godot
 
 #endif  // LHAT_GODOT_RESOURCE_FORMAT_H

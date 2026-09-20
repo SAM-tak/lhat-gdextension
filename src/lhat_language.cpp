@@ -22,6 +22,7 @@
 #include "lhat_godot_module.h"
 #include "lhat_debugger.h"
 #include "lhat_host.h"
+#include "lhat_resource_format.h"
 #include "lhat_script.h"
 
 namespace godot {
@@ -322,6 +323,15 @@ void LhatLanguage::_init()
 // it made (let_go), and the editor is on its way out.
 void LhatLanguage::_finish()
 {
+    // What GDScript does first in its own finish (GDScriptCache::clear, then
+    // clear() on every script): the scripts go back HERE. Left to the
+    // loader's map to give up when the library is unloaded, they go back
+    // after the engine has counted what is still in use -- which left a
+    // project's scripts standing there one run in four.
+    for (LhatScript *const &script : LhatScript::all()) {
+        script->let_go();
+    }
+    forget_scripts();
     if (buffer != nullptr) {
         lhat_program_free(buffer);
         buffer = nullptr;
