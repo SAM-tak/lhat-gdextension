@@ -209,13 +209,13 @@ void packed_at(LhatMachine *machine, void *context,
     int64_t at = count > 1 && lhat_is_integer(arguments[1])
                      ? lhat_as_integer(arguments[1])
                      : 0;
-    if (held == nullptr || at < 1 || at > held->size()) {
+    if (held == nullptr || at < 0 || at >= held->size()) {
         answers[0] = element_out<E>(machine, module, E());
         *answer_count = 1;
         return;
     }
-    // 02 の 14: a sequence is written from 1, so that is what is read here.
-    answers[0] = element_out<E>(machine, module, (*held)[at - 1]);
+    // 02 の 14: a sequence is written from 0, as the engine's own is.
+    answers[0] = element_out<E>(machine, module, (*held)[at]);
     *answer_count = 1;
 }
 
@@ -233,10 +233,10 @@ void packed_set(LhatMachine *machine, void *context,
                      ? lhat_as_integer(arguments[1])
                      : 0;
     if (held == nullptr || count < 3 || !element_in<E>(arguments[2], module, &value) ||
-        at < 1 || at > held->size()) {
+        at < 0 || at >= held->size()) {
         return;
     }
-    held->set(at - 1, value);
+    held->set(at, value);
 }
 
 template <typename P>
@@ -292,7 +292,7 @@ template <typename P>
 struct PackedWalk {
     const Godot *module;
     LhatValue over;  // the hostdata, re-read via held_packed each step
-    int64_t at;      // 1-origin, the next element to hand over
+    int64_t at;      // the next element to hand over
 };
 
 template <typename P>
@@ -304,7 +304,7 @@ bool packed_step(LhatMachine *machine, void *context, const LhatValue *sent,
     (void)sent_count;
     PackedWalk<P> *walk = (PackedWalk<P> *)context;
     const P *held = held_packed<P>(walk->over, walk->module);
-    if (held == nullptr || walk->at > held->size()) {
+    if (held == nullptr || walk->at >= held->size()) {
         // 13.9's third slot: a walk that ends with nothing, which is what
         // every one of these does.
         return false;
@@ -312,7 +312,7 @@ bool packed_step(LhatMachine *machine, void *context, const LhatValue *sent,
     // The four value-element arrays answer 8.9's pointer form here, and the
     // machine writes it out whole into the focus -- the same crossing a
     // host call's answer makes.
-    answers[0] = element_out<E>(machine, walk->module, (*held)[walk->at - 1]);
+    answers[0] = element_out<E>(machine, walk->module, (*held)[walk->at]);
     *answer_count = 1;
     walk->at++;
     return true;
@@ -345,7 +345,7 @@ void packed_iterate(LhatMachine *machine, void *context,
     PackedWalk<P> *walk = memnew(PackedWalk<P>);
     walk->module = module;
     walk->over = arguments[0];
-    walk->at = 1;
+    walk->at = 0;
     LhatValue out = lhat_nil();
     if (!lhat_machine_make_coroutine(machine, packed_step<P>, walk,
                                      packed_walk_release<P>, arguments[0],

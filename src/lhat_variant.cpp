@@ -25,7 +25,7 @@ bool from_variant_at(LhatMachine *machine, const Variant &value,
                      const Godot *module, int depth, LhatValue *out);
 
 // 02 の 14: one structure serves as both a sequence and a mapping, and Godot
-// has two. A table whose keys are exactly 1..n is the sequence -- which
+// has two. A table whose keys are exactly 0..n-1 is the sequence -- which
 // makes an empty table an empty Array, since it satisfies that with n = 0.
 bool is_sequence(const LhatTable *table)
 {
@@ -38,7 +38,7 @@ Variant table_to_variant(const LhatTable *table, const Godot *module,
     size_t length = lhat_table_length(table);
     if (is_sequence(table)) {
         Array out;
-        for (size_t i = 1; i <= length; i++) {
+        for (size_t i = 0; i < length; i++) {
             out.push_back(
                 to_variant_at(lhat_table_get(table, lhat_integer((int64_t)i)),
                               module, depth + 1));
@@ -49,7 +49,7 @@ Variant table_to_variant(const LhatTable *table, const Godot *module,
     Dictionary out;
     for (size_t i = 0; i < table->array_count; i++) {
         LhatValue held = lhat_slots_get(table->array, i);
-        out[(int64_t)(i + 1)] = to_variant_at(held, module, depth + 1);
+        out[(int64_t)i] = to_variant_at(held, module, depth + 1);
     }
     // An entry is live when its key is not nil^ -- free and tombstone alike
     // carry a nil^ key (object.h, at LhatTable).
@@ -128,10 +128,10 @@ bool make_table_from(LhatMachine *machine, const Array &items,
         if (!from_variant_at(machine, items[i], module, depth + 1, &held)) {
             return false;
         }
-        // 02 の 14.1: the keys of a sequence start at one.
+        // 02 の 14.1: the keys of a sequence are its slots, from 0.
         bool refused = false;
         if (!lhat_machine_table_set(machine, table,
-                                    lhat_integer((int64_t)i + 1), held,
+                                    lhat_integer((int64_t)i), held,
                                     &refused) ||
             refused) {
             return false;

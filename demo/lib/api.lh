@@ -7,7 +7,7 @@ public^let^greet = f^who:string^-> string^{ return^$"hello, {who}" }
 
 public^let^add = f^a:number^, b:number^-> number^{ return^a + b }
 
-# Godot の Array は 1..n の表として渡ってくる
+# A Godot Array arrives as a table keyed 0..n-1
 public^let^total = f^xs:t^{ number^[] } -> number^{
 	var^sum = 0
 	for^x in^xs { sum += x }
@@ -21,6 +21,6 @@ public^let^describe = f^who:string^{
 
 public^let^numbers = f^n:number^{
 	var^out = {}
-	for^i from^1 to^n { out[i] := i * i }
+	for^i from^1 to^n { out.push^(i * i) }
 	return^out
 }

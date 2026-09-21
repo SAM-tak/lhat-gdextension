@@ -572,18 +572,18 @@ sig.disconnect(to)
 let^points = godot.packedVector2Array()
 points.append(godot.vector2(1, 2))
 points.append(godot.vector2(3, 4))
-print($"{points.size()} 点、2番目は {points.at(2)}")
-points.set(1, godot.vector2(9, 9))
+print($"{points.size()} 点、2番目は {points.at(1)}")
+points.set(0, godot.vector2(9, 9))
 self^.gdobj.set("polygon", points)
 ```
 
 `size()` `at(i)` `set(i, v)` `append(v)` `clear()` `dispose` `iterate`。添字は
-1 から（02 の 14 の並びと同じ）で、無い添字は要素の零を答える——表と同じ
+0 から（02 の 14 の並びと同じ）で、無い添字は要素の零を答える——表と同じ
 読み方である。
 
 **`for^` で歩ける**（05 の 8.8 の `iterate` 登録）。出すのは要素だけ——
 Packed\* は列であり、1名の走査が列の値を受けるのは表の密部と同じ読み方。
-添字も要るなら従来どおり `for^ i from^ 1 to^ a.size()` と数える。
+添字も要るなら従来どおり `for^ i from^ 0 to^ a.size() - 1` と数える。
 `Vector2` などホスト値の要素も焦点へ丸ごと渡る（8.9改）。
 
 ```lhat
@@ -989,11 +989,11 @@ for line in LhatRuntime.run("res://hello.lh"):
 | `bool^` | `bool` |
 | 整数 / 実数 | `int` / `float` |
 | `string^` | `String` |
-| 鍵が 1..n の表 | `Array` |
+| 鍵が 0..n-1 の表 | `Array` |
 | それ以外の表 | `Dictionary` |
 
 逆向きも同じ対応。`String`/`StringName`/`NodePath` はすべて `string^` に、
-`Array` は 1..n の表になる。**`Node`・`Callable`・`Signal`・`Packed*Array` は
+`Array` は 0..n-1 の表になる。**`Node`・`Callable`・`Signal`・`Packed*Array` は
 8.8 のデータとして渡る**。数学の型は 8.9 の値なので `any^` に入れないが、
 `box^` に入れれば渡る。残りは拒む。
 

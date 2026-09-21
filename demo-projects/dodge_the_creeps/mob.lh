@@ -25,10 +25,10 @@ public^let^Mob = def^{
 	_ready = p^self^{
 		# get_animation_names answers a PackedStringArray, which is a handle
 		# with size and at -- so pick_random is one line rather than a copy
-		# into an Array first. 02 の 14 writes a sequence from 1, which is
+		# into an Array first. 02 の 14 writes a sequence from 0, which is
 		# where at() starts.
 		let^kinds = self^.sprite.get_sprite_frames().get_animation_names()
-		let^picked = kinds.at(godot.randi_range(1, kinds.size()))
+		let^picked = kinds.at(godot.randi_range(0, kinds.size() - 1))
 		self^.sprite.set_animation(picked)
 		# GDScript's bare play() means "the one that is set"; the engine
 		# spells that as the null StringName, which a written "" is not.

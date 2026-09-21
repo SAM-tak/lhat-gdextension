@@ -165,13 +165,13 @@ void array_at(LhatMachine *machine, void *context, const LhatValue *arguments,
     int64_t at = count > 1 && lhat_is_integer(arguments[1])
                      ? lhat_as_integer(arguments[1])
                      : 0;
-    if (held == nullptr || at < 1 || at > held->size()) {
+    if (held == nullptr || at < 0 || at >= held->size()) {
         answers[0] = element_missing(machine, container_of(context));
         *answer_count = 1;
         return;
     }
-    // 02 の 14: a sequence is written from 1, so that is what is read here.
-    answers[0] = element_answer(machine, container_of(context), (*held)[at - 1]);
+    // 02 の 14: a sequence is written from 0, as the engine's own is.
+    answers[0] = element_answer(machine, container_of(context), (*held)[at]);
     *answer_count = 1;
 }
 
@@ -184,13 +184,13 @@ void array_set(LhatMachine *machine, void *context, const LhatValue *arguments,
     int64_t at = count > 1 && lhat_is_integer(arguments[1])
                      ? lhat_as_integer(arguments[1])
                      : 0;
-    if (held == nullptr || count < 3 || at < 1 || at > held->size()) {
+    if (held == nullptr || count < 3 || at < 0 || at >= held->size()) {
         return;
     }
     // A typed array refuses an element of the wrong type here, with the
     // engine's own error -- the checker has said what it can from the
     // signature, and what is left is what only the engine knows.
-    held->set(at - 1, element_taken(arguments[2], module));
+    held->set(at, element_taken(arguments[2], module));
 }
 
 void array_append(LhatMachine *machine, void *context,
@@ -236,7 +236,7 @@ void array_dispose(LhatMachine *machine, void *context,
 struct ArrayWalk {
     const BoundContainer *what;
     LhatValue over;
-    int64_t at;  // 1-origin, the next element to hand over
+    int64_t at;  // the next element to hand over
 };
 
 bool array_step(LhatMachine *machine, void *context, const LhatValue *sent,
@@ -246,11 +246,11 @@ bool array_step(LhatMachine *machine, void *context, const LhatValue *sent,
     (void)sent_count;
     ArrayWalk *walk = (ArrayWalk *)context;
     const Array *held = held_array_of(walk->over, walk->what->module);
-    if (held == nullptr || walk->at > held->size()) {
+    if (held == nullptr || walk->at >= held->size()) {
         // 13.9's third slot: a walk that ends with nothing.
         return false;
     }
-    answers[0] = element_answer(machine, walk->what, (*held)[walk->at - 1]);
+    answers[0] = element_answer(machine, walk->what, (*held)[walk->at]);
     *answer_count = 1;
     walk->at++;
     return true;
@@ -279,7 +279,7 @@ void array_iterate(LhatMachine *machine, void *context,
     ArrayWalk *walk = memnew(ArrayWalk);
     walk->what = container_of(context);
     walk->over = arguments[0];
-    walk->at = 1;
+    walk->at = 0;
     LhatValue out = lhat_nil();
     if (!lhat_machine_make_coroutine(machine, array_step, walk,
                                      array_walk_release, arguments[0], &out)) {
@@ -427,11 +427,10 @@ bool dictionary_step(LhatMachine *machine, void *context,
     (void)sent;
     (void)sent_count;
     DictionaryWalk *walk = (DictionaryWalk *)context;
-    if (walk->at > walk->keys.size()) {
+    if (walk->at >= walk->keys.size()) {
         return false;
     }
-    answers[0] =
-        element_answer(machine, walk->what, walk->keys[walk->at - 1]);
+    answers[0] = element_answer(machine, walk->what, walk->keys[walk->at]);
     *answer_count = 1;
     walk->at++;
     return true;
@@ -464,7 +463,7 @@ void dictionary_iterate(LhatMachine *machine, void *context,
     walk->what = container_of(context);
     walk->over = arguments[0];
     walk->keys = held->keys();
-    walk->at = 1;
+    walk->at = 0;
     LhatValue out = lhat_nil();
     if (!lhat_machine_make_coroutine(machine, dictionary_step, walk,
                                      dictionary_walk_release, arguments[0],
