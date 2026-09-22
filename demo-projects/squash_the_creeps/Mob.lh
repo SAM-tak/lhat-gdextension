@@ -41,7 +41,7 @@ public^let^Mob = def^{
 
 		# Turned randomly within 45 degrees either way, so that it does not
 		# head straight for the player.
-		self^.rotate_y(godot.randf_range(-godot.PI() / 4.0, godot.PI() / 4.0))
+		self^.rotate_y(godot.randf_range(-godot.PI / 4.0, godot.PI / 4.0))
 
 		let^speed = godot.randf_range(self^.minSpeed, self^.maxSpeed)
 		# A forward velocity first, which is the speed; then turned by the

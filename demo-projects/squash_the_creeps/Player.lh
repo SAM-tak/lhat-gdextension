@@ -88,7 +88,7 @@ public^let^Player = def^{
 
 		# What makes the character follow an arc while jumping.
 		var^turn = self^.get_rotation()
-		turn.x := godot.PI() / 6.0 * self^.get_velocity().y / self^.jumpImpulse
+		turn.x := godot.PI / 6.0 * self^.get_velocity().y / self^.jumpImpulse
 		self^.set_rotation(turn)
 	},
 

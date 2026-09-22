@@ -66,7 +66,7 @@ public^let^Player = def^{
 			self^.sprite.set_flip_h(velocity.x < 0.0)
 		elseif^velocity.y ≠ 0.0:
 			self^.sprite.set_animation("up")
-			self^.set_rotation(if^velocity.y > 0.0: godot.PI() el^: 0.0 ;)
+			self^.set_rotation(if^velocity.y > 0.0: godot.PI el^: 0.0 ;)
 		}
 	},
 

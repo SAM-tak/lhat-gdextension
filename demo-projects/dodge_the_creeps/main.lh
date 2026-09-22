@@ -65,8 +65,8 @@ public^let^Main = def^{
 		mob.set_position(self^.spawn.get_position())
 
 		# Perpendicular to the path's direction, with some randomness.
-		var^direction = self^.spawn.get_rotation() + godot.PI() / 2.0
-		direction += godot.randf_range(-godot.PI() / 4.0, godot.PI() / 4.0)
+		var^direction = self^.spawn.get_rotation() + godot.PI / 2.0
+		direction += godot.randf_range(-godot.PI / 4.0, godot.PI / 4.0)
 		mob.set_rotation(direction)
 
 		# The velocity that carries it across the screen.

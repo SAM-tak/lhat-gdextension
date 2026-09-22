@@ -249,12 +249,11 @@ void util_rand_from_seed(LhatMachine *machine, void *context,
 
 // ---------------------------------------------------------------------------
 // 78 of the 114 are mathematics, and every one of them is here rather than in
-// std.math -- which this host registers none of. One reason settles it:
-// std.math works in DEGREES and Godot works in radians, and the engine's own
-// 139 angle-carrying methods cannot be converted, since extension_api.json
-// says nothing about what a float means. Two conventions in one expression is
-// worse than either, so the engine's is the one, and sin(x) here takes what
-// set_rotation takes.
+// std.math -- which this host registers none of. Both take angles in radians,
+// so it is not the units: it is that std.math could not stand in for these.
+// lerp_angle, move_toward, smoothstep and the rest are the engine's and a
+// game's, and a script given both would hold two spellings of sin. One set,
+// then, and the engine's is the one a GDScript reader already knows.
 //
 // The eleven that take or answer a Variant are left out: abs, min, max, clamp,
 // sign, lerp, snapped, wrap, round, floor and ceil each have an f and an i of
@@ -393,30 +392,6 @@ void whole_of_real_whole(LhatMachine *machine, void *context,
     *answer_count = 1;
 }
 
-// ---------------------------------------------------------------------------
-// GDScript's PI, TAU, INF and NAN. Written as calls because a host has no way
-// to register a constant -- every lhat_register_* takes a LhatHostFn, and
-// std.math itself carries functions and no constants. A nullary f^ is the
-// nearest thing, and it beats making every writer spell the digits out.
-
-template <double (*Fn)()>
-void util_constant(LhatMachine *machine, void *context,
-                   const LhatValue *arguments, size_t count,
-                   LhatValue *answers, int *answer_count)
-{
-    (void)machine;
-    (void)context;
-    (void)arguments;
-    (void)count;
-    answers[0] = lhat_real(Fn());
-    *answer_count = 1;
-}
-
-double pi_value() { return Math_PI; }
-double tau_value() { return Math_TAU; }
-double inf_value() { return Math_INF; }
-double nan_value() { return Math_NAN; }
-
 }  // namespace
 
 bool register_util(LhatProgram *program, Godot *module)
@@ -451,11 +426,6 @@ bool register_util(LhatProgram *program, Godot *module)
         {"randfn", "f^number^, number^-> number^;", util_randfn},
         {"rand_from_seed", "f^number^-> godot.PackedInt64Array;",
          util_rand_from_seed},
-
-        {"PI", "f^-> number^;", util_constant<pi_value>},
-        {"TAU", "f^-> number^;", util_constant<tau_value>},
-        {"INF", "f^-> number^;", util_constant<inf_value>},
-        {"NAN", "f^-> number^;", util_constant<nan_value>},
 
         {"absf", "f^number^-> number^;",
          real_of_real<UtilityFunctions::absf>},
@@ -595,6 +565,21 @@ bool register_util(LhatProgram *program, Godot *module)
     for (const auto &one : every) {
         if (!lhat_register_func(program, "godot", one.name, one.signature,
                                 one.call, module)) {
+            return false;
+        }
+    }
+
+    // GDScript's PI, TAU, INF and NAN, read rather than called -- constants
+    // there, as std.math's pi and tau are in L^.
+    const struct {
+        const char *name;
+        double value;
+    } constants[] = {
+        {"PI", Math_PI}, {"TAU", Math_TAU}, {"INF", Math_INF}, {"NAN", Math_NAN},
+    };
+    for (const auto &one : constants) {
+        if (!lhat_register_const_real(program, "godot", nullptr, one.name,
+                                      one.value)) {
             return false;
         }
     }

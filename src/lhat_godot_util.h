@@ -10,8 +10,7 @@
 // a static of its own, so what is left here is the crossing and nothing
 // else, and the ones that take a variadic tail have no ptrcall for the
 // generator to find anyway. The mathematics is among them in place of
-// std.math, which this host does not register -- std.math works in degrees
-// and the engine in radians, and the .cpp says why the engine's is kept.
+// std.math, which this host does not register; the .cpp says why.
 
 #ifndef LHAT_GODOT_UTIL_H
 #define LHAT_GODOT_UTIL_H
