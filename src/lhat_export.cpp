@@ -161,7 +161,8 @@ void LhatExportPlugin::compile_unit(const String &path)
     }
     uint8_t *bytes = nullptr;
     size_t length = 0;
-    if (!lhat_unit_write_binary(unit, debug, &bytes, &length)) {
+    if (lhat_unit_write_binary(unit, debug, &bytes, &length) !=
+        LHAT_WRITE_OK) {
         UtilityFunctions::push_error(
             host::problem(path, "could not be written out as a compiled unit"));
         return;
