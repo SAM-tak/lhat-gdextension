@@ -163,7 +163,7 @@ foreach ($target in $Targets) {
     cmake -S $root -B $tree -G Ninja -DCMAKE_BUILD_TYPE=Release `
         -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl `
         "-DGODOTCPP_TARGET=$godot_target" "-DLHAT_VM_ONLY=$vm_only" `
-        -DLHAT_GD_PGO=GENERATE | Out-Null
+        -DLHAT_PGO=GENERATE | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "$target : configure failed" }
     cmake --build $tree | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "$target : instrumented build failed" }
@@ -196,8 +196,8 @@ foreach ($target in $Targets) {
     if ($LASTEXITCODE -ne 0) { throw "$target : llvm-profdata merge failed" }
 
     Write-Host "=== ${target}: building with the profile ==="
-    cmake -S $root -B $tree -DLHAT_GD_PGO=USE `
-        "-DLHAT_GD_PGO_PROFILE=$($merged -replace '\\', '/')" | Out-Null
+    cmake -S $root -B $tree -DLHAT_PGO=USE `
+        "-DLHAT_PGO_PROFILE=$($merged -replace '\\', '/')" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "$target : reconfigure failed" }
     cmake --build $tree | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "$target : optimised build failed" }
