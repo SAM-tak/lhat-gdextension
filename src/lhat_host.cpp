@@ -233,8 +233,7 @@ LhatProgram *program_for(Units *units)
 #endif
     if (!lhat_register_global(program, "print", "f^...->nil^;", host_print,
                               nullptr) ||
-        !lhat_bind_initial(program, "print", "L^.print") ||
-        !lhat_bind_initial(program, "collectgarbage", "L^.collectgarbage")) {
+        !lhat_bind_initial(program, "print", "L^.print")) {
         lhat_program_free(program);
         return nullptr;
     }

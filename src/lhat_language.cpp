@@ -54,7 +54,7 @@ const char *const declaring_words[] = {
     "var^",      "let^",     "f^",       "p^",        "op^",
     "def^",      "enum^",    "pack^",    "unpack^",   "module^",
     "public^",   "require^", "import^",  "override^", "overload^",
-    "abstract^", "closed^",  "errordef^", "delegate^",
+    "abstract^", "errordef^", "delegate^",
     "true^",     "false^",
     "and^",      "or^",      "is^",      "fits^",     "as^", nullptr,
 };
