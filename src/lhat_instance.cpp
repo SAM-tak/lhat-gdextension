@@ -130,10 +130,9 @@ const StringName &name_of(GDExtensionConstStringNamePtr from)
 // every name it can think of and reads `false` as "not mine". A field
 // holding nil^ has no entry in the table, though, and "no entry" is not
 // "not mine": the declaration (14.16) is what tells those two apart.
-bool declares(const Instance *it, const LhatTable *table, LhatValue key,
-              const StringName &name)
+bool declares(const Instance *it, LhatValue standing, const StringName &name)
 {
-    return !lhat_is_nil(lhat_table_get(table, key)) ||
+    return !lhat_is_nil(standing) ||
            it->script->lhat_declared_type(String(name)) != nullptr;
 }
 
@@ -150,7 +149,7 @@ GDExtensionBool instance_set(GDExtensionScriptInstanceDataPtr data,
     }
     LhatMachine *machine = it->script->lhat_machine();
 
-    CharString spelt = String(name_of(name)).utf8();
+    const CharString &spelt = host::spelt(name_of(name));
     LhatValue key = lhat_nil();
     LhatValue held = lhat_nil();
     if (!lhat_machine_make_string(machine, spelt.get_data(),
@@ -158,7 +157,8 @@ GDExtensionBool instance_set(GDExtensionScriptInstanceDataPtr data,
         return false;
     }
     LhatTable *table = (LhatTable *)lhat_as_object(it->self);
-    if (!declares(it, table, key, name_of(name))) {
+    LhatValue standing = lhat_table_get(table, key);
+    if (!declares(it, standing, name_of(name))) {
         return false;
     }
     // 05 の 8.9: a field holding a box is written through the box rather
@@ -166,7 +166,6 @@ GDExtensionBool instance_set(GDExtensionScriptInstanceDataPtr data,
     // is the bytes inside. Nothing here could make a new one anyway: the
     // heap is the machine's and box^ is the spelling that reaches it.
     const Variant &given = *reinterpret_cast<const Variant *>(value);
-    LhatValue standing = lhat_table_get(table, key);
     if (host::box_takes_variant(standing, it->script->godot(), given)) {
         return true;
     }
@@ -191,20 +190,18 @@ GDExtensionBool instance_get(GDExtensionScriptInstanceDataPtr data,
     }
     LhatMachine *machine = it->script->lhat_machine();
 
-    CharString spelt = String(name_of(name)).utf8();
-    LhatValue key = lhat_nil();
-    if (!lhat_machine_make_string(machine, spelt.get_data(),
-                                  (size_t)spelt.length(), &key)) {
-        return false;
-    }
+    // Asked by its bytes, so a read makes nothing on the machine's heap.
+    const CharString &spelt = host::spelt(name_of(name));
     const LhatTable *table = (const LhatTable *)lhat_as_object(it->self);
-    if (!declares(it, table, key, name_of(name))) {
+    LhatValue standing =
+        lhat_table_get_bytes(table, spelt.get_data(), (size_t)spelt.length());
+    if (!declares(it, standing, name_of(name))) {
         return false;
     }
     // A declared field holding nil^ answers nil, which is what a .tscn
     // writes back and what the inspector draws an empty slot from.
     *reinterpret_cast<Variant *>(answer) =
-        host::to_variant(lhat_table_get(table, key), it->script->godot());
+        host::to_variant(standing, it->script->godot());
     return true;
 }
 
@@ -920,7 +917,7 @@ void instance_call(GDExtensionScriptInstanceDataPtr data,
         converted.push_back(held);
     }
 
-    CharString spelt = String(name_of(method)).utf8();
+    const CharString &spelt = host::spelt(name_of(method));
     LhatRunResult ran = lhat_machine_call_member(
         machine, it->self, spelt.get_data(), (size_t)spelt.length(),
         converted.ptr(), converted.size());

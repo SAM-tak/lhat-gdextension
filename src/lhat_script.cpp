@@ -999,13 +999,11 @@ LhatValue LhatScript::member_named(const StringName &name) const
     if (!runnable || machine == nullptr) {
         return lhat_nil();
     }
-    CharString spelt = String(name).utf8();
-    LhatValue key = lhat_nil();
-    if (!lhat_machine_make_string(machine, spelt.get_data(),
-                                  (size_t)spelt.length(), &key)) {
-        return lhat_nil();
-    }
-    return lhat_table_get((const LhatTable *)lhat_as_object(klass), key);
+    // Asked on every call the engine makes (has_lhat_method), so by bytes
+    // kept from the last time rather than a string made on the heap.
+    const CharString &spelt = host::spelt(name);
+    return lhat_table_get_bytes((const LhatTable *)lhat_as_object(klass),
+                                spelt.get_data(), (size_t)spelt.length());
 }
 
 bool LhatScript::has_lhat_method(const StringName &method) const
@@ -1368,7 +1366,7 @@ Variant LhatScript::call_static(const StringName &member,
         converted.push_back(held);
     }
 
-    CharString name = String(member).utf8();
+    const CharString &name = host::spelt(member);
     LhatRunResult called = lhat_machine_call_member(
         machine, klass, name.get_data(), (size_t)name.length(),
         converted.ptr(), converted.size());

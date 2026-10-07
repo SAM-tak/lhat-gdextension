@@ -332,6 +332,7 @@ void LhatLanguage::_finish()
         script->let_go();
     }
     forget_scripts();
+    host::forget_spellings();
     if (buffer != nullptr) {
         lhat_program_free(buffer);
         buffer = nullptr;

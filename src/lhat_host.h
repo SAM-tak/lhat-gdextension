@@ -66,6 +66,15 @@ struct Alone {
 void take_hold(void *context);
 void let_hold_go(void *context);
 
+// The bytes of an engine name, spelt once per name and kept. The engine hands
+// a script the same few names every frame -- _process, a field the inspector
+// reads -- and spelling each one out again was an allocation per call that
+// was thrown away when the call returned. What is answered stays where it is
+// until forget_spellings, which the language calls on its way out: a kept
+// StringName has to go back while the engine can still take it.
+const CharString &spelt(const StringName &name);
+void forget_spellings();
+
 // 05 の 5.1 folds separators away and keeps nothing else, so "res://a/b.lh"
 // would come back from the language as "res:/a/b.lh" -- one slash, and no
 // longer a path the engine will open. The scheme is therefore taken off

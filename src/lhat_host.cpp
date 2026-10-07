@@ -107,6 +107,48 @@ void let_hold_go(void *context)
     the_lock().unlock();
 }
 
+namespace {
+
+// The name is held beside its bytes: a StringName is a pointer to the
+// engine's one entry for that text, so the pointer is the key, and holding
+// the name is what keeps the entry -- and with it the key -- from being
+// freed and given to another text.
+struct Spelling {
+    StringName name;
+    CharString bytes;
+};
+
+HashMap<uintptr_t, Spelling> &spellings()
+{
+    static HashMap<uintptr_t, Spelling> it;
+    return it;
+}
+
+}  // namespace
+
+const CharString &spelt(const StringName &name)
+{
+    static_assert(sizeof(StringName) == sizeof(uintptr_t),
+                  "a StringName is one pointer");
+    uintptr_t key = 0;
+    memcpy(&key, name._native_ptr(), sizeof key);
+    Alone alone;
+    // An element of Godot's HashMap is allocated on its own and never moves,
+    // and nothing is taken out before forget_spellings -- so what is answered
+    // stays good after the lock is let go.
+    Spelling *found = spellings().getptr(key);
+    if (found == nullptr) {
+        found = &spellings().insert(key, {name, String(name).utf8()})->value;
+    }
+    return found->bytes;
+}
+
+void forget_spellings()
+{
+    Alone alone;
+    spellings().clear();
+}
+
 String unit_path(const Units &units, const String &path)
 {
     return path.begins_with(units.base) ? path.substr(units.base.length())

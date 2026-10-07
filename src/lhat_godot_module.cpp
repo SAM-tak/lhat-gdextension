@@ -276,22 +276,15 @@ void godot_emit(LhatMachine *machine, void *context,
 // answers for itself; anything else is an instance of a class composed onto
 // Godot.Object, and 14.15's declared field is where that class keeps the
 // object -- the same `self^.gdobj` a hand-written body reaches through.
-Object *engine_object_of(LhatMachine *machine, LhatValue self,
-                         const Godot *module)
+Object *engine_object_of(LhatValue self, const Godot *module)
 {
     Object *direct = object_of(self, module);
     if (direct != nullptr || !lhat_is_object_kind(self, LHAT_OBJECT_TABLE)) {
         return direct;
     }
-    // Made per call, the way instance_get and instance_set make theirs: a
-    // key kept between calls would be a value with no root, and the
-    // collector reaches nothing a host holds.
-    LhatValue key = lhat_nil();
-    if (!lhat_machine_make_string(machine, "gdobj", 5, &key)) {
-        return nullptr;
-    }
+    // By its bytes, so emitting makes nothing on the machine's heap.
     const LhatTable *table = (const LhatTable *)lhat_as_object(self);
-    return object_of(lhat_table_get(table, key), module);
+    return object_of(lhat_table_get_bytes(table, "gdobj", 5), module);
 }
 
 // What an empty-bodied @signal member is filled with. The same road
@@ -305,7 +298,7 @@ void signal_emit(LhatMachine *machine, void *context,
     if (emitter == nullptr || count == 0) {
         return;
     }
-    Object *object = engine_object_of(machine, arguments[0], emitter->module);
+    Object *object = engine_object_of(arguments[0], emitter->module);
     if (object == nullptr) {
         answers[0] = gone("emit", arguments[0], emitter->module);
         *answer_count = 1;
