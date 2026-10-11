@@ -33,13 +33,13 @@ public^let^Hud = def^{
 
 	show_game_over = p^self^{
 		self^.show_message("Game Over")
-		yield^godot.signal(self^.messageTimer, "timeout")
+		yield^self^.messageTimer.timeout()
 
 		self^.message.set_text("Dodge the\nCreeps")
 		self^.message.show()
 
 		let^wait = self^.get_tree().create_timer(1.0, true^, false^, false^)
-		yield^godot.signal(wait, "timeout")
+		yield^wait.timeout()
 
 		self^.startButton.show()
 	},

@@ -267,6 +267,46 @@ void signal_dispose(LhatMachine *machine, void *context,
     }
 }
 
+struct KnownSignal {
+    const char *type;
+    const char *name;
+    const Godot *module;
+};
+
+// The declaration's class owns the accessor; derived classes inherit it.
+// These descriptors outlive the callbacks registered on every program.
+KnownSignal known_signals[] = {
+    {"Timer", "timeout", nullptr},
+    {"SceneTreeTimer", "timeout", nullptr},
+    {"BaseButton", "pressed", nullptr},
+    {"BaseButton", "toggled", nullptr},
+    {"Tween", "finished", nullptr},
+    {"Node", "ready", nullptr},
+    {"Node", "tree_exited", nullptr},
+    {"Area2D", "body_entered", nullptr},
+    {"AnimationMixer", "animation_finished", nullptr},
+};
+
+// f^self^ -> godot.Signal: no signal name or emitted arguments are supplied
+// by the caller. This returns a signal, without emitting it.
+void known_signal(LhatMachine *machine, void *context,
+                  const LhatValue *arguments, size_t count,
+                  LhatValue *answers, int *answer_count)
+{
+    const KnownSignal *binding = (const KnownSignal *)context;
+    const Godot *module = binding->module;
+    Object *object = count > 0 ? object_of(arguments[0], module) : nullptr;
+    if (object == nullptr) {
+        return;
+    }
+    LhatValue out = lhat_nil();
+    answers[0] = make_signal(machine, module, Signal(object, StringName(binding->name)),
+                             &out)
+                     ? out
+                     : lhat_nil();
+    *answer_count = 1;
+}
+
 // f^godot.Object, string^-> godot.Signal
 void make_signal_of(LhatMachine *machine, void *context,
                     const LhatValue *arguments, size_t count,
@@ -369,9 +409,21 @@ bool register_handles(LhatProgram *program, Godot *module)
         }
     }
 
+    for (auto &binding : known_signals) {
+        if (binding.module == nullptr) {
+            binding.module = module;
+        }
+        if (!lhat_register_member(program, "godot", binding.type, binding.name,
+                                  "f^self^ -> godot.Signal;", known_signal,
+                                  &binding)) {
+            return false;
+        }
+    }
+
     // 14.15 with 8.8: neither is made out of nothing. A Callable names a
     // method on an object and a Signal one the object emits, so both are
-    // made from an object and a name and there is no other way to have one.
+    // made from an object and a name. The known signal accessors above
+    // supply the signal name themselves.
     return lhat_register_func(program, "godot", "callable",
                               "f^godot.Object, string^-> godot.Callable;",
                               make_callable_of, module) &&

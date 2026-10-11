@@ -549,8 +549,28 @@ sig.disconnect(to)
 ```
 
 **無から作る道は無い。** `Callable` はオブジェクトとメソッド名から、`Signal` は
-オブジェクトとシグナル名から作る。それ以外の作り方は無い——`godot.Object` が
-同じ理由で `override^new` の引数からしか来ないのと同じである（14.15）。
+オブジェクトとシグナル名から作る。`godot.Object` が
+`override^new` の引数からしか来ないのと同じである（14.15）。
+
+`Timer` と `SceneTreeTimer` の `timeout()` は、受け手の `timeout` シグナルを
+`godot.Signal` として返す。名前を文字列で書かずに取得でき、メソッド名の
+誤記は型検査で検出できる。引数は取らず、タイマーの開始も行わない。
+
+同じ形で、次の組み込みシグナルも取得できる。いずれも引数なしで
+`godot.Signal` を返す。派生クラスも継承するので、`Button.pressed()` や
+`AnimationPlayer.animation_finished()` と書ける。
+
+| 登録先 | シグナルを返すメソッド |
+| --- | --- |
+| `Timer` / `SceneTreeTimer` | `timeout()` |
+| `BaseButton` | `pressed()` / `toggled()` |
+| `Tween` | `finished()` |
+| `Node` | `ready()` / `tree_exited()` |
+| `Area2D` | `body_entered()` |
+| `AnimationMixer` | `animation_finished()` |
+
+シグナルが発火時に渡す引数は変わらない。例えば `toggled()` の取得には
+引数を渡さないが、返されたシグナルは発火時に `bool` を受け手へ渡す。
 
 `Callable` は `isValid()` `getMethod()` `getObject()` `call(…)`、
 `Signal` は `getName()` `getObject()` `isNull()` `connect()` `disconnect()`
@@ -611,11 +631,11 @@ GDScript が `await` と書くところは、L^ では 02 の 15.5 の `yield^` 
 ```lhat
 show_game_over = p^self^{
     self^.show_message("Game Over")
-    yield^ godot.signal(self^.messageTimer, "timeout")
+    yield^ self^.messageTimer.timeout()
 
     self^.message.set_text("Dodge the\nCreeps")
     let^ wait = self^.get_tree().create_timer(1.0, true^, false^, false^)
-    yield^ godot.signal(wait, "timeout")
+    yield^ wait.timeout()
 
     self^.startButton.show()
 },

@@ -44,6 +44,63 @@ func _ready() -> void:
 	print(LhatRuntime.call_member(api, "describe", ["L^"]))
 	print(LhatRuntime.call_member(api, "numbers", [5]))
 
+	# Both timeout() accessors must return the signal of their own receiver.
+	var signal_probe := Node.new()
+	signal_probe.set_script(load("res://counter.lh"))
+	var timer := Timer.new()
+	var timer_signal = signal_probe.call("timer_signal", timer)
+	var scene_timer := get_tree().create_timer(0.01)
+	var scene_signal = signal_probe.call("scene_tree_timer_signal", scene_timer)
+	var button := Button.new()
+	var tween := get_tree().create_tween()
+	tween.tween_interval(1.0)
+	var signal_node := Label.new()
+	var area := Area2D.new()
+	var animation := AnimationPlayer.new()
+	var signals = signal_probe.call("engine_signals", button, tween, signal_node, area, animation)
+	var expected := {
+		"pressed": button, "toggled": button, "finished": tween,
+		"ready": signal_node, "tree_exited": signal_node, "body_entered": area,
+		"animation_finished": animation,
+	}
+	var signals_ok := signals is Dictionary
+	for signal_name in expected:
+		var obtained = signals.get(signal_name) if signals is Dictionary else null
+		if not obtained is Signal:
+			signals_ok = false
+		elif obtained.get_name() != StringName(signal_name) or obtained.get_object() != expected[signal_name]:
+			signals_ok = false
+	# Returning a toggled Signal must preserve its emitted bool argument.
+	var toggled_values: Array = []
+	if signals_ok:
+		signals["toggled"].connect(func(value): toggled_values.append(value))
+		button.toggled.emit(true)
+		signals_ok = toggled_values == [true]
+	button.free()
+	tween.kill()
+	signal_node.free()
+	area.free()
+	animation.free()
+	signal_probe.free()
+	if not signals_ok:
+		push_error("engine signal accessors returned an incorrect signal or lost its arguments")
+		timer.free()
+		get_tree().quit(1)
+		return
+	if not timer_signal is Signal or not scene_signal is Signal:
+		push_error("timeout() did not return a Signal")
+		timer.free()
+		get_tree().quit(1)
+		return
+	if timer_signal.get_name() != &"timeout" or timer_signal.get_object() != timer \
+			or scene_signal.get_name() != &"timeout" or scene_signal.get_object() != scene_timer:
+		push_error("timeout() returned the wrong signal or receiver")
+		timer.free()
+		get_tree().quit(1)
+		return
+	timer.free()
+	await scene_signal
+
 	# A node wearing an L^ script. The members are shared with every other
 	# node wearing the file and the self^ fields are each node's own
 	# (02 の 14.3), so two of them count separately.

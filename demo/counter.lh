@@ -6,6 +6,8 @@
 
 module^demo.counter
 
+import^godot
+
 public^let^Counter = def^{
 	self^{ ticks = 0, name = "?" },
 
@@ -17,6 +19,26 @@ public^let^Counter = def^{
 	tick = p^self^{ self^.ticks += 1 },
 
 	count = f^self^{ return^self^.ticks },
+
+	# Typed access to the engine timers' signals, without a string name.
+	timer_signal = f^self^, timer:godot.Timer {
+		return^timer.timeout()
+	},
+
+	scene_tree_timer_signal = f^self^, timer:godot.SceneTreeTimer {
+		return^timer.timeout()
+	},
+
+	# Base class accessors must also work on Button, Label and AnimationPlayer.
+	engine_signals = f^self^, button:godot.BaseButton, tween:godot.Tween,
+		node:godot.Node, area:godot.Area2D, animation:godot.AnimationMixer {
+		return^{
+			pressed = button.pressed(), toggled = button.toggled(),
+			finished = tween.finished(), ready = node.ready(),
+			tree_exited = node.tree_exited(), body_entered = area.body_entered(),
+			animation_finished = animation.animation_finished(),
+		}
+	},
 
 	greet = f^self^, who:string^{
 		return^$"{self^.name} greets {who}"
