@@ -118,9 +118,18 @@ struct Spelling {
     CharString bytes;
 };
 
-HashMap<uintptr_t, Spelling> &spellings()
+// uintptr_t need not match any of Godot's integer hash overloads (on macOS
+// it is unsigned long). Keep the pointer-sized key and convert only to hash.
+struct PointerHasher {
+    static uint32_t hash(uintptr_t key)
+    {
+        return hash_one_uint64(static_cast<uint64_t>(key));
+    }
+};
+
+HashMap<uintptr_t, Spelling, PointerHasher> &spellings()
 {
-    static HashMap<uintptr_t, Spelling> it;
+    static HashMap<uintptr_t, Spelling, PointerHasher> it;
     return it;
 }
 
