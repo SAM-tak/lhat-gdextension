@@ -74,7 +74,7 @@ public^let^Main = def^{
 		mob.set_linear_velocity(velocity.rotated(direction))
 
 		self^.add_child(mob, false^,
-		                godot.Node.InternalMode.INTERNAL_MODE_DISABLED)
+						godot.Node.InternalMode.INTERNAL_MODE_DISABLED)
 	},
 
 	_on_ScoreTimer_timeout = p^self^{
