@@ -116,13 +116,46 @@ jobs:
       # clock here and none of it changes between runs, so it is kept. The
       # key carries the compiler's platform and the CMake that names the tag;
       # bump `v1` to throw the lot away.
-      - name: godot-cpp
-        uses: actions/cache@v6
+      - name: Restore godot-cpp
+        id: godot-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             lhat-gdextension/build/godot-cpp
             lhat-gdextension/build/godot-cpp-*
           key: v1-godot-cpp-${{ runner.os }}-${{ hashFiles('lhat-gdextension/CMakeLists.txt', 'lhat-gdextension/cmake/godot-cpp/CMakeLists.txt') }}
+
+      # These configures build missing godot-cpp libraries. Run them directly
+      # and one at a time: an outer Ninja would buffer their entire output,
+      # and three inner Ninjas would compete for the runner's resources.
+      - name: Prepare godot-cpp (editor)
+        shell: bash
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 3
+        run: cmake --preset editor-release
+
+      - name: Prepare godot-cpp (template_debug)
+        shell: bash
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 3
+        run: cmake --preset template_debug-release
+
+      - name: Prepare godot-cpp (template_release)
+        shell: bash
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 3
+        run: cmake --preset template_release-release
+
+      # Save before compiling this extension or running its smoke tests, so
+      # a later failure/cancellation does not discard the dependency build.
+      - name: Save godot-cpp
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            lhat-gdextension/build/godot-cpp
+            lhat-gdextension/build/godot-cpp-*
+          key: ${{ steps.godot-cache.outputs.cache-primary-key }}
 
       - name: Configure
         shell: bash
