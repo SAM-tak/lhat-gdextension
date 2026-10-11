@@ -56,7 +56,8 @@ const char *const declaring_words[] = {
     "public^",   "require^", "import^",  "override^", "overload^",
     "abstract^", "errordef^", "delegate^",
     "true^",     "false^",
-    "and^",      "or^",      "is^",      "fits^",     "as^", nullptr,
+    "and^",      "or^",      "is^",      "fits^",     "as^",
+    "bitand^",   "bitor^",   "bitxor^",  "bitshift^", "bitnot^", nullptr,
 };
 
 // Self^ is a type where self^ is a value: 01 の 2.3 compares a hat word byte
