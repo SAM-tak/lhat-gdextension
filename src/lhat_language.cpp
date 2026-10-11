@@ -20,6 +20,7 @@
 #endif
 #include "lhat_godot_enums.h"
 #include "lhat_godot_module.h"
+#include "lhat_godot_handles.h"
 #include "lhat_debugger.h"
 #include "lhat_host.h"
 #include "lhat_resource_format.h"
@@ -339,6 +340,7 @@ void LhatLanguage::_finish()
         buffer = nullptr;
     }
     if (machine != nullptr) {
+        host::cancel_deferred(machine);
         lhat_machine_dispose(machine);
         machine = nullptr;
     }

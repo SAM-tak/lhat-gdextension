@@ -563,6 +563,7 @@ sig.disconnect(to)
 | 登録先 | シグナルを返すメソッド |
 | --- | --- |
 | `Timer` / `SceneTreeTimer` | `timeout()` |
+| `SceneTree` | `process_frame()` / `physics_frame()` |
 | `BaseButton` | `pressed()` / `toggled()` |
 | `Tween` | `finished()` |
 | `Node` | `ready()` / `tree_exited()` |
@@ -571,6 +572,10 @@ sig.disconnect(to)
 
 シグナルが発火時に渡す引数は変わらない。例えば `toggled()` の取得には
 引数を渡さないが、返されたシグナルは発火時に `bool` を受け手へ渡す。
+
+通常処理のタイミングを待つなら `yield^self^.get_tree().process_frame()`、
+物理処理のタイミングを待つなら `yield^self^.get_tree().physics_frame()` と書く。
+それぞれ、次の `_process` / `_physics_process` の直前の発火を待つ。
 
 `Callable` は `isValid()` `getMethod()` `getObject()` `call(…)`、
 `Signal` は `getName()` `getObject()` `isNull()` `connect()` `disconnect()`
@@ -620,6 +625,25 @@ for^ p in^ points {
 
 **写し取らない。** 千要素の配列を読むのは呼び出し千回であって、千要素の表を
 作ることではない。`get()` / `set()` / `call()` はそのまま運ぶ。
+
+### 手続きの実行を予約する `godot.defer`
+
+`godot.defer` の型は `p^p^;;`。引数なしの手続き `p^;` を1つ受け取り、
+Godot の遅延呼び出しキューへ予約する。呼び出し元はそのまま進む。
+
+```lhat
+godot.defer(p^{
+    self^.show_message("Hello")
+})
+```
+
+引数が必要な呼び出しはクロージャの中に書くので、メソッド名も引数も通常の
+型検査を受ける。複数の操作もまとめられる。捕捉した値は実行まで GC の根に
+保持され、実行後に解放される。機械が終了したとき、未実行の予約は取り消される。
+
+実行は主に通常処理・物理処理の終わりの idle time。同じ idle time 中に
+さらに予約した手続きも実行されるので、1フレーム待つ保証はない。
+渡す手続きには `yield^` を書かない。フレームを跨ぐ処理には次のシグナル待ちを使う。
 
 ### シグナルを待つのは `yield^`
 

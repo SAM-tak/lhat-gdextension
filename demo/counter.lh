@@ -20,6 +20,17 @@ public^let^Counter = def^{
 
 	count = f^self^{ return^self^.ticks },
 
+	set_name = p^self^, text:string^{ self^.name := text },
+
+	# Keep captured locals alive across GC; nested defers use the same queue.
+	defer_name = p^self^, text:string^{
+		godot.defer(p^{
+			self^.set_name(text)
+			godot.defer(p^{ self^.name := $"{self^.name}!" })
+		})
+		L^.gc.collect()
+	},
+
 	# Typed access to the engine timers' signals, without a string name.
 	timer_signal = f^self^, timer:godot.Timer {
 		return^timer.timeout()
@@ -31,12 +42,14 @@ public^let^Counter = def^{
 
 	# Base class accessors must also work on Button, Label and AnimationPlayer.
 	engine_signals = f^self^, button:godot.BaseButton, tween:godot.Tween,
-		node:godot.Node, area:godot.Area2D, animation:godot.AnimationMixer {
+		node:godot.Node, area:godot.Area2D, animation:godot.AnimationMixer,
+		tree:godot.SceneTree {
 		return^{
 			pressed = button.pressed(), toggled = button.toggled(),
 			finished = tween.finished(), ready = node.ready(),
 			tree_exited = node.tree_exited(), body_entered = area.body_entered(),
 			animation_finished = animation.animation_finished(),
+			process_frame = tree.process_frame(), physics_frame = tree.physics_frame(),
 		}
 	},
 

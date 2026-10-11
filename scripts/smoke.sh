@@ -74,6 +74,19 @@ for name in demo dodge_the_creeps squash_the_creeps; do
     check "$name (run)" "$work/$name.run.log"
 done
 
+# Deferred closures must remain typed and queued callbacks must not outlive
+# the temporary machines used by LhatRuntime.run/call_member.
+if ! "$godot" --headless --path "$work/demo" --script res://defer_checks.gd \
+    --quit-after 300 > "$work/demo.defer.log" 2>&1; then
+    failed=1
+fi
+check "demo (defer)" "$work/demo.defer.log"
+if ! grep -q "defer checks: OK" "$work/demo.defer.log" ||
+   grep -q "DEFER_SHOULD_NOT_RUN" "$work/demo.defer.log"; then
+    echo "FAIL demo (defer): type checks or cancellation failed" >&2
+    failed=1
+fi
+
 # One positive answer, so that a run which printed nothing at all is not
 # mistaken for a clean one. demo's main.gd asks the extension to check, run
 # and call a unit, and reads a value back out of a .tres it wrote.

@@ -57,11 +57,12 @@ func _ready() -> void:
 	var signal_node := Label.new()
 	var area := Area2D.new()
 	var animation := AnimationPlayer.new()
-	var signals = signal_probe.call("engine_signals", button, tween, signal_node, area, animation)
+	var signals = signal_probe.call("engine_signals", button, tween, signal_node, area, animation, get_tree())
 	var expected := {
 		"pressed": button, "toggled": button, "finished": tween,
 		"ready": signal_node, "tree_exited": signal_node, "body_entered": area,
 		"animation_finished": animation,
+		"process_frame": get_tree(), "physics_frame": get_tree(),
 	}
 	var signals_ok := signals is Dictionary
 	for signal_name in expected:
@@ -100,6 +101,8 @@ func _ready() -> void:
 		return
 	timer.free()
 	await scene_signal
+	await signals["process_frame"]
+	await signals["physics_frame"]
 
 	# A node wearing an L^ script. The members are shared with every other
 	# node wearing the file and the self^ fields are each node's own
@@ -119,6 +122,23 @@ func _ready() -> void:
 	one.call("tick")
 	print("one=", one.call("count"), " two=", two.call("count"))
 	print(one.call("greet", "Godot"))
+
+	var defer_probe := Node.new()
+	defer_probe.set_script(script)
+	defer_probe.call("defer_name", "deferred")
+	if defer_probe.get("name") != "?":
+		push_error("godot.defer executed synchronously")
+		defer_probe.free()
+		get_tree().quit(1)
+		return
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if defer_probe.get("name") != "deferred!":
+		push_error("godot.defer lost its captured values or nested callback")
+		defer_probe.free()
+		get_tree().quit(1)
+		return
+	defer_probe.free()
 
 	# The other thing a script is worn by: a Resource rather than a Node.
 	# Its @export fields are what the inspector edits and what a .tres keeps,

@@ -27,6 +27,9 @@ struct Godot;
 // functions that make one. Before any checking (05 の 8.7).
 bool register_handles(LhatProgram *program, Godot *module);
 
+// Cancel queued L^ callbacks before disposing their machine.
+void cancel_deferred(LhatMachine *machine);
+
 // A value of godot.Callable or godot.Signal standing for this one. False
 // only when the machine ran out of memory.
 bool make_callable(LhatMachine *machine, const Godot *module,

@@ -7,6 +7,7 @@
 
 #include "lhat.h"
 #include "lhat_host.h"
+#include "lhat_godot_handles.h"
 #include "lhat_variant.h"
 
 namespace godot {
@@ -115,6 +116,7 @@ PackedStringArray LhatRuntime::run(const String &path)
         UtilityFunctions::print(host::text_of(ran.value));
     }
 
+    host::cancel_deferred(machine);
     lhat_machine_dispose(machine);
     lhat_program_free(program);
     return said;
@@ -203,6 +205,7 @@ Variant LhatRuntime::call_member(const String &path, const String &member,
         }
     }
 
+    host::cancel_deferred(machine);
     lhat_machine_dispose(machine);
     lhat_program_free(program);
     return answer;

@@ -1,11 +1,15 @@
 #include "lhat_godot_handles.h"
 
 #include <godot_cpp/core/memory.hpp>
+#include <godot_cpp/variant/callable_custom.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
+#include <unordered_set>
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/variant.hpp>
 
 #include "lhat_godot_module.h"
+#include "lhat_host.h"
 #include "lhat_variant.h"
 
 namespace godot {
@@ -39,6 +43,103 @@ LhatValue text_answer(LhatMachine *machine, const String &text)
 
 // ---------------------------------------------------------------------------
 // Callable
+
+class DeferredCall;
+
+std::unordered_set<DeferredCall *> &pending_calls()
+{
+    static std::unordered_set<DeferredCall *> calls;
+    return calls;
+}
+
+// Godot's queue owns the Callable; the machine's host root owns its closure.
+// Cancellation leaves a harmless queued Callable after its machine is gone.
+class DeferredCall : public CallableCustom {
+    mutable LhatMachine *machine;
+    LhatValue ticket;
+
+    static bool equal(const CallableCustom *a, const CallableCustom *b) { return a == b; }
+    static bool less(const CallableCustom *a, const CallableCustom *b)
+    {
+        return (uintptr_t)a < (uintptr_t)b;
+    }
+
+public:
+    DeferredCall(LhatMachine *on, LhatValue held) : machine(on), ticket(held)
+    {
+        pending_calls().insert(this);
+    }
+    ~DeferredCall() override
+    {
+        Alone alone;
+        release();
+    }
+    bool belongs_to(LhatMachine *on) const { return machine == on; }
+    void release() const
+    {
+        if (machine != nullptr) {
+            bool refused = false;
+            lhat_machine_table_set(machine, lhat_machine_host_root(machine),
+                                   ticket, lhat_nil(), &refused);
+            machine = nullptr;
+        }
+        pending_calls().erase(const_cast<DeferredCall *>(this));
+    }
+    ObjectID get_object() const override { return ObjectID(); }
+    // This Callable has no engine Object; cancellation makes it a valid no-op.
+    bool is_valid() const override { return true; }
+    uint32_t hash() const override { return (uint32_t)((uintptr_t)this >> 3); }
+    String get_as_text() const override { return "godot.defer"; }
+    CompareEqualFunc get_compare_equal_func() const override { return equal; }
+    CompareLessFunc get_compare_less_func() const override { return less; }
+    int get_argument_count(bool &valid) const override { valid = true; return 0; }
+
+    void call(const Variant **arguments, int count, Variant &answer,
+              GDExtensionCallError &error) const override
+    {
+        (void)arguments;
+        (void)count;
+        Alone alone;
+        answer = Variant();
+        error.error = GDEXTENSION_CALL_OK;
+        if (machine == nullptr) {
+            return;
+        }
+        LhatValue closure = lhat_table_get((LhatTable *)lhat_as_object(ticket),
+                                           lhat_integer(0));
+        LhatRunResult ran = lhat_machine_call(machine, closure, nullptr, 0);
+        if (ran.status != LHAT_RUN_OK) {
+            UtilityFunctions::push_error(run_problem(machine, "godot.defer", ran));
+        } else if (lhat_is_object_kind(ran.value, LHAT_OBJECT_COROUTINE)) {
+            UtilityFunctions::push_error("godot.defer: the deferred procedure must not yield");
+        }
+        release();
+    }
+};
+
+void defer_procedure(LhatMachine *machine, void *context,
+                     const LhatValue *arguments, size_t count,
+                     LhatValue *answers, int *answer_count)
+{
+    (void)context;
+    (void)answers;
+    *answer_count = 0;
+    Alone alone;
+    if (count != 1) {
+        return;
+    }
+    LhatValue ticket = lhat_nil();
+    bool refused = false;
+    if (!lhat_machine_make_table(machine, &ticket) ||
+        !lhat_machine_table_set(machine, (LhatTable *)lhat_as_object(ticket),
+                                lhat_integer(0), arguments[0], &refused) || refused ||
+        !lhat_machine_table_set(machine, lhat_machine_host_root(machine),
+                                ticket, lhat_bool(true), &refused) || refused) {
+        lhat_machine_panic_text(machine, "godot.defer: out of memory retaining the procedure");
+        return;
+    }
+    Callable(memnew(DeferredCall(machine, ticket))).call_deferred();
+}
 
 const Callable *held_callable(LhatValue value, const Godot *module)
 {
@@ -278,6 +379,8 @@ struct KnownSignal {
 KnownSignal known_signals[] = {
     {"Timer", "timeout", nullptr},
     {"SceneTreeTimer", "timeout", nullptr},
+    {"SceneTree", "process_frame", nullptr},
+    {"SceneTree", "physics_frame", nullptr},
     {"BaseButton", "pressed", nullptr},
     {"BaseButton", "toggled", nullptr},
     {"Tween", "finished", nullptr},
@@ -327,6 +430,18 @@ void make_signal_of(LhatMachine *machine, void *context,
 }
 
 }  // namespace
+
+void cancel_deferred(LhatMachine *machine)
+{
+    Alone alone;
+    auto &calls = pending_calls();
+    for (auto at = calls.begin(); at != calls.end();) {
+        DeferredCall *call = *at++;
+        if (call->belongs_to(machine)) {
+            call->release();
+        }
+    }
+}
 
 bool make_callable(LhatMachine *machine, const Godot *module,
                    const Callable &callable, LhatValue *out)
@@ -424,7 +539,9 @@ bool register_handles(LhatProgram *program, Godot *module)
     // method on an object and a Signal one the object emits, so both are
     // made from an object and a name. The known signal accessors above
     // supply the signal name themselves.
-    return lhat_register_func(program, "godot", "callable",
+    return lhat_register_func(program, "godot", "defer", "p^p^;;",
+                              defer_procedure, module) &&
+           lhat_register_func(program, "godot", "callable",
                               "f^godot.Object, string^-> godot.Callable;",
                               make_callable_of, module) &&
            lhat_register_func(program, "godot", "signal",
