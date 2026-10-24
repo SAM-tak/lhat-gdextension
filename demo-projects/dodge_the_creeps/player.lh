@@ -4,6 +4,7 @@ module^dodge.player
 
 import^godot
 
+import^godot.Input
 @game @export_class
 public^let^Player = def^{
 	self^{

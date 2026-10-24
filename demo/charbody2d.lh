@@ -2,6 +2,7 @@ module^charbody_2d
 
 import^godot
 
+import^godot.Input
 # Classic movement for gravity games (platformer, ...).
 @game
 public^let^Charbody2d = def^{

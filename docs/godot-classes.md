@@ -18,6 +18,10 @@ static（レシーバが無い）を除いてある。
 要素は読んだときだけ渡る。`godot.ArrayOfX` は `godot.Array` の下に
 宣言してあるので、型付きは型無しの場所に立てる（逆は立てない）。
 
+singleton は `godot` の下の単位 `godot.<名前>` に登録してある。
+1つの `import^` は1つの単位なので、`import^ godot` だけでは届かず、
+`import^ godot.Input` のように singleton ごとに書く。
+
 L^ 欄の `—` は「まだ無い」、`除外` は `godot-classes.txt` の
 `!` 行で「要らないと決めた」枝。
 

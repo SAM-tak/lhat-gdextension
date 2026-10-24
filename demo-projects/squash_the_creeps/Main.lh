@@ -4,6 +4,7 @@ module^squash.main
 
 import^godot
 
+import^godot.RenderingServer
 @game @export_class
 public^let^Main = def^{
 	self^{
