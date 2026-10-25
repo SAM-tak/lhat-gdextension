@@ -1136,6 +1136,37 @@ liblhat.windows.template_release.x86_64.dll
 liblhat.windows.template_release.vmonly.x86_64.dll
 ```
 
+#### 実測 — エンジン呼びと `delegate^`
+
+`demo/bench.gd` は L^ からのエンジン呼びを書き方ごとに測り、同じループを
+GDScript でも回して対照にする。`delegate^` 経由（`self^.set_rotation`）と
+ハンドル直（`self^.gdobj.set_rotation`）を並べてあるので、差が `delegate^`
+の上乗せになる:
+
+```powershell
+godot --headless --path demo --script res://bench.gd
+```
+
+コアの `2d75c57`（`delegate^` で借りた答え・host 型が継いだメンバ・
+`import^` の根からの読みを、呼ぶ所で覚える）の前後。PGO の editor 版で、
+旧 `ebaedb2` と新を交互に3回ずつ、200,000回・9標本の最小:
+
+| | 旧 | 新 |
+| --- | --- | --- |
+| `setDelegated`（`delegate^` 経由） | 87,105µs | **63,147µs** |
+| `setDirect`（ハンドル直） | 81,420µs | **62,100µs** |
+| `getDelegated`（`delegate^` 経由） | 42,717µs | **29,185µs** |
+| `getDirect`（ハンドル直） | 37,387µs | **27,821µs** |
+| `valid`（`isValid`、ObjectDB を引くだけ） | 35,767µs | **19,629µs** |
+| `setByName`（`set("rotation", …)`） | 271,427µs | **244,909µs** |
+| `callLhat`（L^ のメソッド呼び） | 13,919µs | 14,717µs |
+| GDScript の同じ set / get（対照） | 51,151 / 15,484µs | 50,024 / 16,168µs |
+
+`delegate^` の上乗せは set で 5,685 → 1,047µs、get で 5,330 → 1,364µs
+（200,000回あたり）。直も速くなったのは `set_rotation` が Node2D の、
+`isValid` が Object のメンバ——継いだメンバ——だからである。`callLhat` の
++6% は対照の揺れ（±4%）と同じ程度で、退行とは言い切れない。
+
 godot-cpp はランタイムとコンパイラの組ごとに**1回だけ**、
 `build/godot-cpp-<target>-<compiler>/` に最適化ありで作られ、`debug` /
 `fastdebug` の段もそれをリンクする（拡張のデバッグビルドは godot-cpp の
