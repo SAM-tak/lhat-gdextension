@@ -11,7 +11,8 @@
 # the core at the commit .github/lhat-ref names, not wherever its default
 # branch is today. A run then says which core it built, and a red one is this
 # tree's doing or that file's, never a core commit nobody here asked for.
-# Moving to a newer core is a commit that changes the file.
+# Moving to a newer core is a commit that changes the file, which
+# scripts/bump-lhat-ref.ps1 writes.
 name: ci
 
 on:
